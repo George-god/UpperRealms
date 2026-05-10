@@ -1,0 +1,830 @@
+/**
+ * Realm UI motion — lightweight, GPU-friendly where possible.
+ * Duration aligned with .realm-transition (200ms).
+ */
+:root {
+    --realm-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --realm-dur: 200ms;
+}
+
+/* Hover lift + press (buttons, cards) */
+.realm-hover-lift {
+    transition:
+        transform var(--realm-dur) var(--realm-ease),
+        box-shadow var(--realm-dur) var(--realm-ease),
+        border-color var(--realm-dur) var(--realm-ease);
+}
+.realm-hover-lift:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+.realm-hover-lift:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+.realm-hover-lift:disabled {
+    transform: none;
+}
+
+/* Ambient glow pulse */
+@keyframes realm-glow-pulse {
+    0%,
+    100% {
+        opacity: 0.55;
+        filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.35));
+    }
+    50% {
+        opacity: 1;
+        filter: drop-shadow(0 0 14px rgba(129, 140, 248, 0.55));
+    }
+}
+.realm-glow-pulse {
+    animation: realm-glow-pulse 2.2s var(--realm-ease) infinite;
+    will-change: opacity, filter;
+}
+
+/* Full-card / bar damage flash */
+@keyframes realm-damage-flash {
+    0%,
+    100% {
+        filter: brightness(1);
+    }
+    50% {
+        filter: brightness(1.4);
+    }
+}
+.realm-damage-flash {
+    animation: realm-damage-flash 0.35s var(--realm-ease);
+}
+
+/* Shake */
+@keyframes realm-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    20% {
+        transform: translateX(-5px);
+    }
+    40% {
+        transform: translateX(5px);
+    }
+    60% {
+        transform: translateX(-3px);
+    }
+    80% {
+        transform: translateX(3px);
+    }
+}
+.realm-shake {
+    animation: realm-shake 0.4s var(--realm-ease);
+}
+
+/* Floating combat numbers */
+@keyframes realm-float-dmg {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -26px) scale(1.15);
+    }
+}
+.realm-float-dmg {
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    z-index: 5;
+    pointer-events: none;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow:
+        0 0 10px rgba(0, 0, 0, 0.85),
+        0 1px 2px rgba(0, 0, 0, 0.9);
+    animation: realm-float-dmg 0.85s var(--realm-ease) forwards;
+    will-change: transform, opacity;
+}
+
+/* Cultivation orb — idle breathing */
+@keyframes realm-orb-pulse-idle {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow:
+            0 0 32px -4px rgba(99, 102, 241, 0.75),
+            inset 0 0 20px rgba(255, 255, 255, 0.12);
+    }
+    50% {
+        transform: scale(1.035);
+        box-shadow:
+            0 0 48px -2px rgba(129, 140, 248, 0.55),
+            inset 0 0 22px rgba(255, 255, 255, 0.16);
+    }
+}
+.realm-orb-pulse-idle {
+    animation: realm-orb-pulse-idle 3.2s var(--realm-ease) infinite;
+}
+
+/* Orb / UI click feedback */
+@keyframes realm-orb-click {
+    0% {
+        transform: scale(1);
+    }
+    45% {
+        transform: scale(0.93);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+.realm-orb-click {
+    animation: realm-orb-click 0.32s var(--realm-ease);
+}
+
+/* Primary action buttons (Laravel + legacy) */
+.realm-btn {
+    transition:
+        transform var(--realm-dur) var(--realm-ease),
+        box-shadow var(--realm-dur) var(--realm-ease),
+        filter var(--realm-dur) var(--realm-ease);
+}
+.realm-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+.realm-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+/* --- Particles (spawnParticles) --- */
+.realm-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    margin-top: -3px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 25;
+    will-change: transform, opacity;
+}
+
+@keyframes realm-particle-burst {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.25);
+    }
+}
+
+.realm-particle.realm-particle--anim {
+    animation: realm-particle-burst var(--dur, 0.65s) var(--realm-ease) forwards;
+}
+
+/* --- Full-screen FX layer --- */
+#realm-screen-fx {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99990;
+    contain: strict;
+}
+
+#realm-screen-fx .realm-fx-fill {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+@keyframes realm-fx-damage-vignette {
+    0% {
+        opacity: 0;
+    }
+    22% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.realm-fx-fill.realm-fx-damage {
+    animation: realm-fx-damage-vignette 0.55s var(--realm-ease) forwards;
+    background: radial-gradient(ellipse 85% 65% at 50% 45%, rgba(220, 38, 38, 0.42), rgba(127, 29, 29, 0.12) 42%, transparent 68%);
+}
+
+@keyframes realm-fx-crit-gold {
+    0% {
+        opacity: 0;
+    }
+    18% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.realm-fx-fill.realm-fx-crit {
+    animation: realm-fx-crit-gold 0.48s var(--realm-ease) forwards;
+    background: radial-gradient(circle at 50% 40%, rgba(251, 191, 36, 0.5), rgba(234, 179, 8, 0.18) 38%, transparent 62%),
+        linear-gradient(180deg, rgba(254, 243, 199, 0.15), transparent 45%);
+}
+
+@keyframes realm-fx-breakthrough-glow {
+    0% {
+        opacity: 0;
+        transform: scale(1);
+    }
+    35% {
+        opacity: 1;
+        transform: scale(1.02);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.06);
+    }
+}
+
+.realm-fx-fill.realm-fx-breakthrough {
+    animation: realm-fx-breakthrough-glow 0.88s var(--realm-ease) forwards;
+    background: radial-gradient(ellipse 70% 55% at 50% 42%, rgba(168, 85, 247, 0.38), rgba(99, 102, 241, 0.22) 45%, rgba(251, 191, 36, 0.12) 70%, transparent 85%),
+        radial-gradient(circle at 50% 100%, rgba(232, 184, 74, 0.2), transparent 55%);
+}
+
+/* --- Screen shake (html root) --- */
+@keyframes realm-fx-shake-light {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    22% {
+        transform: translate3d(-4px, 2px, 0);
+    }
+    44% {
+        transform: translate3d(3px, -2px, 0);
+    }
+    66% {
+        transform: translate3d(-2px, 1px, 0);
+    }
+}
+
+@keyframes realm-fx-shake-heavy {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    18% {
+        transform: translate3d(-8px, 4px, 0);
+    }
+    36% {
+        transform: translate3d(7px, -3px, 0);
+    }
+    54% {
+        transform: translate3d(-6px, 3px, 0);
+    }
+    72% {
+        transform: translate3d(4px, -2px, 0);
+    }
+}
+
+html.realm-fx-shake-light {
+    animation: realm-fx-shake-light 0.42s var(--realm-ease) both;
+}
+
+html.realm-fx-shake-heavy {
+    animation: realm-fx-shake-heavy 0.52s var(--realm-ease) both;
+}
+
+/* --- Breakthrough cinematic (multi-step, no libs) --- */
+#realm-bt-cine-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 99995;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 380ms var(--realm-ease);
+}
+
+#realm-bt-cine-layer.realm-bt-cine--on {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#realm-bt-cine-layer .realm-bt-cine-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 18, 0);
+    transition: background 520ms var(--realm-ease);
+}
+
+#realm-bt-cine-layer .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(2, 6, 18, 0.84);
+}
+
+#realm-bt-cine-layer.realm-bt-cine--failure .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(28, 6, 12, 0.86);
+}
+
+#realm-bt-cine-layer .realm-bt-cine-lightning {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(
+        168deg,
+        transparent 36%,
+        rgba(248, 250, 252, 0.88) 47%,
+        rgba(167, 139, 250, 0.45) 51%,
+        rgba(99, 102, 241, 0.25) 54%,
+        transparent 64%
+    );
+    mix-blend-mode: screen;
+}
+
+#realm-bt-cine-layer.realm-bt-cine--failure .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 34%,
+        rgba(254, 226, 226, 0.92) 46%,
+        rgba(185, 28, 28, 0.45) 52%,
+        transparent 62%
+    );
+}
+
+@keyframes realm-bt-lightning-strike {
+    0% {
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+#realm-bt-cine-layer .realm-bt-cine-lightning.realm-bt-cine-lightning--strike {
+    animation: realm-bt-lightning-strike 0.14s var(--realm-ease) forwards;
+}
+
+#cultivation-orb-stage {
+    position: relative;
+}
+
+#cultivation-orb-stage > svg {
+    z-index: 2;
+}
+
+#cultivation-orb-stage > #cultivation-orb {
+    position: relative;
+    z-index: 3;
+}
+
+#cultivation-orb.realm-bt-orb-cinematic {
+    animation: none !important;
+}
+
+@keyframes realm-bt-orb-explode {
+    0% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+    40% {
+        transform: scale(1.24);
+        filter: brightness(1.45) saturate(1.2);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode {
+    animation: realm-bt-orb-explode 0.72s var(--realm-ease) forwards;
+}
+
+.realm-bt-energy-rings {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.realm-bt-ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10.5rem;
+    height: 10.5rem;
+    margin: -5.25rem 0 0 -5.25rem;
+    border-radius: 50%;
+    border: 2px solid rgba(129, 140, 248, 0.55);
+    box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.4),
+        inset 0 0 22px rgba(167, 139, 250, 0.15);
+    opacity: 0;
+    transform: scale(0.48);
+}
+
+body.realm-bt-cine-running--fail .realm-bt-ring {
+    border-color: rgba(252, 165, 165, 0.55);
+    box-shadow:
+        0 0 28px rgba(220, 38, 38, 0.35),
+        inset 0 0 18px rgba(127, 29, 29, 0.2);
+}
+
+.realm-bt-ring--a {
+    animation: realm-bt-energy-build 2s var(--realm-ease) forwards;
+}
+
+.realm-bt-ring--b {
+    width: 12.75rem;
+    height: 12.75rem;
+    margin: -6.375rem 0 0 -6.375rem;
+    border-width: 3px;
+    animation: realm-bt-energy-build 2s var(--realm-ease) forwards;
+    animation-delay: 0.14s;
+}
+
+.realm-bt-ring--c {
+    width: 14.75rem;
+    height: 14.75rem;
+    margin: -7.375rem 0 0 -7.375rem;
+    border-width: 2px;
+    animation: realm-bt-energy-build 2s var(--realm-ease) forwards;
+    animation-delay: 0.28s;
+}
+
+@keyframes realm-bt-energy-build {
+    0% {
+        opacity: 0;
+        transform: scale(0.42);
+    }
+    40% {
+        opacity: 0.95;
+        transform: scale(0.94);
+    }
+    72% {
+        opacity: 0.88;
+        transform: scale(1.06);
+    }
+    100% {
+        opacity: 0.72;
+        transform: scale(1.14);
+    }
+}
+
+@keyframes realm-bt-reveal-in {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.88);
+        filter: blur(6px);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+        filter: blur(0);
+    }
+}
+
+.realm-bt-reveal {
+    position: fixed;
+    left: 50%;
+    top: 36%;
+    z-index: 100000;
+    max-width: min(90vw, 24rem);
+    padding: 1rem 1.35rem;
+    border-radius: 1rem;
+    text-align: center;
+    pointer-events: none;
+    font-weight: 700;
+    font-size: 1.15rem;
+    line-height: 1.35;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 24px rgba(0, 0, 0, 0.85);
+    animation: realm-bt-reveal-in 0.75s var(--realm-ease) forwards;
+}
+
+.realm-bt-reveal--success {
+    color: #a7f3d0;
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    background: rgba(6, 78, 59, 0.35);
+    box-shadow: 0 0 40px rgba(16, 185, 129, 0.25);
+}
+
+.realm-bt-reveal--failure {
+    color: #fecaca;
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    background: rgba(69, 10, 10, 0.4);
+    box-shadow: 0 0 36px rgba(220, 38, 38, 0.22);
+}
+
+/* --- Breakthrough: realm-specific cinematic layers --- */
+#realm-bt-cine-layer.realm-bt-style-calm .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(15, 23, 42, 0.68);
+}
+
+#realm-bt-cine-layer.realm-bt-style-calm .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 40%,
+        rgba(224, 242, 254, 0.55) 48%,
+        rgba(165, 243, 252, 0.35) 52%,
+        transparent 62%
+    );
+    mix-blend-mode: screen;
+}
+
+#realm-bt-cine-layer.realm-bt-style-fire .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(45, 18, 8, 0.78);
+}
+
+#realm-bt-cine-layer.realm-bt-style-fire .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 34%,
+        rgba(254, 243, 199, 0.75) 46%,
+        rgba(251, 146, 60, 0.55) 51%,
+        rgba(234, 88, 12, 0.35) 55%,
+        transparent 64%
+    );
+}
+
+#realm-bt-cine-layer.realm-bt-style-lightning .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(2, 4, 12, 0.92);
+    box-shadow: inset 0 0 120px rgba(30, 58, 138, 0.25);
+}
+
+#realm-bt-cine-layer.realm-bt-style-lightning .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 32%,
+        rgba(241, 245, 249, 0.95) 47%,
+        rgba(96, 165, 250, 0.65) 51%,
+        rgba(59, 130, 246, 0.4) 54%,
+        transparent 63%
+    );
+}
+
+#realm-bt-cine-layer.realm-bt-style-vortex.realm-bt-cine--on {
+    filter: contrast(1.06) saturate(1.12);
+}
+
+#realm-bt-cine-layer.realm-bt-style-vortex .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(12, 6, 24, 0.88);
+}
+
+#realm-bt-cine-layer.realm-bt-style-vortex .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 30%,
+        rgba(216, 180, 254, 0.85) 48%,
+        rgba(109, 40, 217, 0.45) 53%,
+        transparent 62%
+    );
+}
+
+#realm-bt-cine-layer.realm-bt-style-immortal .realm-bt-cine-scrim.realm-bt-cine-scrim--dark {
+    background: rgba(28, 22, 8, 0.8);
+}
+
+#realm-bt-cine-layer.realm-bt-style-immortal .realm-bt-cine-lightning {
+    background: linear-gradient(
+        168deg,
+        transparent 35%,
+        rgba(254, 249, 195, 0.9) 47%,
+        rgba(250, 204, 21, 0.5) 52%,
+        rgba(251, 191, 36, 0.25) 56%,
+        transparent 65%
+    );
+}
+
+/* Vortex overlays (Soul Transformation / Immortal) */
+.realm-bt-vortex {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    width: 140vmax;
+    height: 140vmax;
+    margin-left: -70vmax;
+    margin-top: -70vmax;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: screen;
+    filter: blur(16px);
+}
+
+.realm-bt-vortex--purple {
+    background: conic-gradient(
+        from 0deg,
+        rgba(88, 28, 135, 0.5),
+        transparent 22%,
+        rgba(99, 102, 241, 0.45) 44%,
+        transparent 55%,
+        rgba(168, 85, 247, 0.4) 78%,
+        transparent 100%
+    );
+    animation: realm-bt-vortex-spin 3.2s linear infinite;
+}
+
+.realm-bt-vortex--gold {
+    background: conic-gradient(
+        from 40deg,
+        rgba(254, 243, 199, 0.45),
+        transparent 18%,
+        rgba(250, 204, 21, 0.35) 40%,
+        transparent 50%,
+        rgba(251, 191, 36, 0.4) 72%,
+        transparent 100%
+    );
+    animation: realm-bt-vortex-spin 5s linear infinite;
+    opacity: 0.5;
+}
+
+@keyframes realm-bt-vortex-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Energy ring palettes + timing per realm */
+body.realm-bt-cine-style-calm .realm-bt-energy-rings .realm-bt-ring {
+    border-color: rgba(125, 211, 252, 0.45);
+    box-shadow:
+        0 0 22px rgba(56, 189, 248, 0.28),
+        inset 0 0 18px rgba(224, 231, 255, 0.12);
+}
+
+.realm-bt-rings--calm .realm-bt-ring--a,
+.realm-bt-rings--calm .realm-bt-ring--b,
+.realm-bt-rings--calm .realm-bt-ring--c {
+    animation-duration: 2.75s;
+    animation-timing-function: cubic-bezier(0.33, 0.12, 0.25, 1);
+}
+
+body.realm-bt-cine-style-fire .realm-bt-energy-rings .realm-bt-ring {
+    border-color: rgba(251, 146, 60, 0.55);
+    box-shadow:
+        0 0 32px rgba(234, 88, 12, 0.45),
+        inset 0 0 20px rgba(254, 215, 170, 0.18);
+}
+
+.realm-bt-rings--fire .realm-bt-ring--a,
+.realm-bt-rings--fire .realm-bt-ring--b,
+.realm-bt-rings--fire .realm-bt-ring--c {
+    animation-duration: 1.75s;
+}
+
+body.realm-bt-cine-style-lightning .realm-bt-energy-rings .realm-bt-ring {
+    border-color: rgba(165, 180, 252, 0.65);
+    box-shadow:
+        0 0 36px rgba(99, 102, 241, 0.55),
+        inset 0 0 22px rgba(224, 231, 255, 0.2);
+}
+
+.realm-bt-rings--lightning .realm-bt-ring--a,
+.realm-bt-rings--lightning .realm-bt-ring--b,
+.realm-bt-rings--lightning .realm-bt-ring--c {
+    animation-duration: 1.45s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.9, 0.4);
+}
+
+body.realm-bt-cine-style-vortex .realm-bt-energy-rings .realm-bt-ring {
+    border-color: rgba(192, 132, 252, 0.55);
+    box-shadow:
+        0 0 34px rgba(126, 34, 206, 0.45),
+        inset 0 0 24px rgba(167, 139, 250, 0.2);
+}
+
+.realm-bt-rings--vortex .realm-bt-ring--a,
+.realm-bt-rings--vortex .realm-bt-ring--b,
+.realm-bt-rings--vortex .realm-bt-ring--c {
+    animation-duration: 1.65s;
+}
+
+body.realm-bt-cine-style-immortal .realm-bt-energy-rings .realm-bt-ring {
+    border-color: rgba(250, 204, 21, 0.5);
+    box-shadow:
+        0 0 38px rgba(245, 158, 11, 0.4),
+        inset 0 0 26px rgba(254, 243, 199, 0.22);
+}
+
+.realm-bt-rings--immortal .realm-bt-ring--a,
+.realm-bt-rings--immortal .realm-bt-ring--b,
+.realm-bt-rings--immortal .realm-bt-ring--c {
+    animation-duration: 1.85s;
+}
+
+/* Bloodline hint: rose edge on rings */
+body.realm-bt-cine-bloodline .realm-bt-energy-rings .realm-bt-ring {
+    box-shadow:
+        0 0 32px rgba(244, 63, 94, 0.35),
+        0 0 48px rgba(251, 113, 133, 0.15),
+        inset 0 0 20px rgba(254, 205, 211, 0.12);
+}
+
+@keyframes realm-bt-orb-explode-calm {
+    0% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+    45% {
+        transform: scale(1.1);
+        filter: brightness(1.2) saturate(1.05);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode--calm {
+    animation: realm-bt-orb-explode-calm 0.85s var(--realm-ease) forwards;
+}
+
+@keyframes realm-bt-orb-explode-fire {
+    0% {
+        transform: scale(1);
+        filter: brightness(1) hue-rotate(0deg);
+    }
+    40% {
+        transform: scale(1.2);
+        filter: brightness(1.4) hue-rotate(-12deg) saturate(1.25);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1) hue-rotate(0deg);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode--fire {
+    animation: realm-bt-orb-explode-fire 0.72s var(--realm-ease) forwards;
+}
+
+@keyframes realm-bt-orb-explode-lightning {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    25% {
+        transform: scale(1.08);
+        filter: brightness(1.55);
+    }
+    45% {
+        transform: scale(1.22);
+        filter: brightness(1.65);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode--lightning {
+    animation: realm-bt-orb-explode-lightning 0.68s var(--realm-ease) forwards;
+}
+
+@keyframes realm-bt-orb-explode-vortex {
+    0% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1) hue-rotate(0deg);
+    }
+    50% {
+        transform: scale(1.18) rotate(4deg);
+        filter: brightness(1.35) hue-rotate(25deg) saturate(1.3);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1) hue-rotate(0deg);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode--vortex {
+    animation: realm-bt-orb-explode-vortex 0.78s var(--realm-ease) forwards;
+}
+
+@keyframes realm-bt-orb-explode-immortal {
+    0% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+    35% {
+        transform: scale(1.26);
+        filter: brightness(1.5) saturate(1.35);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+}
+
+#cultivation-orb.realm-bt-orb-explode--immortal {
+    animation: realm-bt-orb-explode-immortal 0.82s var(--realm-ease) forwards;
+}
