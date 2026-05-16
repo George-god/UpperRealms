@@ -138,16 +138,15 @@ foreach ($regions as $region) {
                         <span class="text-amber-300/90">Boss-touched</span> nodes pulse when legends stir.
                     </p>
                     <p class="mt-2 text-sm text-slate-400">
-                        Cycle: <span id="explore-burst-text" class="font-medium text-cyan-300"><?php echo (int)$exploreBurstUsed; ?> / <?php echo (int)$exploreBurstMax; ?></span>
-                        explorations before long rest.
+                        <span id="explore-long-rest-line" class="<?php echo $exploreInLongRest ? 'text-amber-200/95' : 'hidden'; ?>">Long rest active. </span>
+                        Burst progress:
+                        <span id="explore-burst-text" class="font-medium text-cyan-300"><?php echo (int)$exploreBurstUsed; ?> / <?php echo (int)$exploreBurstMax; ?></span>
+                        <span id="explore-burst-hint" class="text-slate-500"><?php echo $exploreInLongRest ? ' (applies to the next burst after cooldown)' : ' (explores before mandatory long rest)'; ?></span>
                     </p>
                 </div>
                 <div class="text-sm text-slate-400">
                     Next explore:
                     <span id="explore-cooldown" class="font-semibold text-white"><?php echo $cooldownRemaining > 0 ? $cooldownRemaining . 's' : 'Ready'; ?></span>
-                    <?php if ($exploreInLongRest): ?>
-                        <span class="mt-1 block text-xs text-amber-300">Long rest active.</span>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -341,7 +340,7 @@ foreach ($regions as $region) {
                             >
                                 Explore
                             </button>
-                            <a href="dungeons.php" class="rounded-xl border border-violet-500/30 bg-violet-950/40 py-3 text-center text-sm font-semibold text-violet-200 transition-all duration-200 hover:border-violet-400/45 hover:shadow-[0_0_20px_-8px_rgba(139,92,246,0.35)]">
+                            <a href="/game/dungeons" class="rounded-xl border border-violet-500/30 bg-violet-950/40 py-3 text-center text-sm font-semibold text-violet-200 transition-all duration-200 hover:border-violet-400/45 hover:shadow-[0_0_20px_-8px_rgba(139,92,246,0.35)]">
                                 Enter Dungeon
                             </a>
                             <a href="world_boss.php" class="rounded-xl border border-red-500/30 bg-red-950/35 py-3 text-center text-sm font-semibold text-red-200/90 transition-all duration-200 hover:border-red-400/45 hover:shadow-[0_0_22px_-8px_rgba(248,113,113,0.35)]">
@@ -364,6 +363,8 @@ foreach ($regions as $region) {
         var resultEl = document.getElementById('explore-result');
         var cooldownEl = document.getElementById('explore-cooldown');
         var burstTextEl = document.getElementById('explore-burst-text');
+        var longRestLineEl = document.getElementById('explore-long-rest-line');
+        var burstHintEl = document.getElementById('explore-burst-hint');
         var cooldownRemaining = <?php echo $cooldownRemaining; ?>;
         var cooldownInterval = null;
         var selectedRegionId = null;
@@ -399,6 +400,16 @@ foreach ($regions as $region) {
             var m = payload.explore_burst_max;
             if (u == null || m == null) return;
             burstTextEl.textContent = u + ' / ' + m;
+            var lr = payload.explore_in_long_rest === true;
+            if (longRestLineEl) {
+                longRestLineEl.classList.toggle('hidden', !lr);
+                if (lr) longRestLineEl.classList.add('text-amber-200/95');
+            }
+            if (burstHintEl) {
+                burstHintEl.textContent = lr
+                    ? ' (applies to the next burst after cooldown)'
+                    : ' (explores before mandatory long rest)';
+            }
         }
 
         function startCooldown(seconds) {
@@ -474,7 +485,7 @@ foreach ($regions as $region) {
                 if (data.dungeon.locked) {
                     html += '<p class="text-amber-300 text-sm">Requires ' + (data.dungeon.min_realm_name || 'Qi Refining') + ' to enter.</p>';
                 } else {
-                    html += '<a href="dungeon.php?dungeon_id=' + data.dungeon.id + '" class="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold">Enter Dungeon</a>';
+                    html += '<a href="/game/dungeon/' + data.dungeon.id + '" class="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold">Enter Dungeon</a>';
                 }
             } else if (eventType === 'manual_discovery' && data && data.manual) {
                 html = '<h3 class="text-lg font-semibold text-violet-300 mb-2">Forgotten Manual Unearthed</h3>';
@@ -583,9 +594,13 @@ foreach ($regions as $region) {
                         startCooldown(parseInt(data.data.cooldown_remaining || 0, 10));
                     } else {
                         showMessage(data.message || 'Exploration failed.', true);
-                        if (data.data && data.data.cooldown_remaining != null) {
+                        if (data.data && (data.data.cooldown_remaining != null || data.data.explore_burst_used != null)) {
                             setBurstFromPayload(data.data);
-                            startCooldown(parseInt(data.data.cooldown_remaining, 10));
+                            if (data.data.cooldown_remaining != null) {
+                                startCooldown(parseInt(data.data.cooldown_remaining, 10));
+                            } else {
+                                btn.disabled = false;
+                            }
                         } else {
                             btn.disabled = false;
                         }

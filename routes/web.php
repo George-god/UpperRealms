@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DungeonController;
 use App\Http\Controllers\GameHubController;
 use App\Http\Controllers\LegacyAssetController;
 use App\Http\Controllers\LegacyPhpController;
@@ -56,6 +57,10 @@ Route::middleware('web')->group(function () use ($legacyJs) {
 
     Route::any('/game/controllers/{page}', [LegacyPhpController::class, 'controllers'])
         ->where('page', $legacyPage);
+});
+
+Route::middleware(['web', 'auth', 'game.admin'])->group(function () {
+    $legacyPage = '[A-Za-z0-9_\.]+';
 
     Route::any('/game/admin/{page}', [LegacyPhpController::class, 'admin'])
         ->where('page', $legacyPage);
@@ -65,6 +70,17 @@ Route::middleware(['web', 'auth', 'onboarding'])->group(function () {
     Route::get('/game', GameHubController::class)->name('game.hub');
     Route::post('/game/pve-attack', [PveAttackController::class, 'store'])
         ->name('game.pve-attack');
+
+    Route::get('/game/dungeons', [DungeonController::class, 'index'])->name('game.dungeons.index');
+    Route::get('/game/dungeon/{dungeon}', [DungeonController::class, 'show'])
+        ->whereNumber('dungeon')
+        ->name('game.dungeon.show');
+    Route::post('/game/dungeon/{dungeon}/start', [DungeonController::class, 'start'])
+        ->whereNumber('dungeon')
+        ->name('game.dungeon.start');
+    Route::post('/game/dungeon/{dungeon}/advance', [DungeonController::class, 'advance'])
+        ->whereNumber('dungeon')
+        ->name('game.dungeon.advance');
 });
 
 Route::middleware(['web', 'auth'])->group(function () {

@@ -32,6 +32,15 @@
             <span aria-hidden="true">☯️</span>
             {{ __('Spirit hall') }}
         </a>
+        @if (auth()->check() && auth()->user()->is_admin)
+            <a
+                href="{{ url('/game/admin/heavenly_observatory.php') }}"
+                class="realm-nav-pill inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/35 bg-cyan-950/25 px-3 py-1.5 text-xs font-semibold text-cyan-100/95 shadow-[0_0_18px_-10px_rgba(34,211,238,0.35)] backdrop-blur-sm transition hover:border-cyan-400/55 sm:text-sm"
+            >
+                <span aria-hidden="true">🔭</span>
+                {{ __('Admin') }}
+            </a>
+        @endif
     </div>
 
     @if ($showQuickNav)

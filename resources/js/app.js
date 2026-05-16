@@ -1,6 +1,8 @@
 import './bootstrap';
 import './realm-sounds';
 import './realm-particles';
+import './realm-visual-fx';
+import './dungeon-combat';
 import './realm-breakthrough-realm-styles';
 import './realm-breakthrough-cinematic';
 

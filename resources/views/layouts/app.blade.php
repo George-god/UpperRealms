@@ -15,6 +15,8 @@
             @vite(['resources/css/app.css', 'resources/js/app.js'])
         @else
             <link rel="stylesheet" href="{{ asset('css/realm-animations.css') }}">
+            <link rel="stylesheet" href="{{ asset('css/realm-visual-fx.css') }}">
+            <link rel="stylesheet" href="{{ asset('css/dungeon-combat.css') }}">
             <script src="https://cdn.tailwindcss.com"></script>
             <script>
                 tailwind.config = {
@@ -30,6 +32,7 @@
             </script>
             <script src="{{ asset('js/realm-sounds.js') }}" defer></script>
             <script src="{{ asset('js/realm-particles.js') }}" defer></script>
+            <script src="{{ asset('js/realm-visual-fx.js') }}" defer></script>
         @endif
 
         <style>
@@ -39,7 +42,15 @@
         </style>
     </head>
     <body class="font-dm min-h-full bg-[#0B0F1A] antialiased text-slate-200">
-        <div class="flex min-h-screen" x-data="{ sidebarOpen: false }" @keydown.window.escape="sidebarOpen = false">
+        @auth
+            @php($uFx = auth()->user())
+            <x-realm-visual-fx
+                :realm-id="(int) $uFx->realm_id"
+                :dao-flair="data_get($uFx, 'dao_element') ?? data_get($uFx, 'dao_alignment')"
+                :bloodline-flair="data_get($uFx, 'bloodline_affinity') ?? data_get($uFx, 'bloodline_type')"
+            />
+        @endauth
+        <div class="relative z-10 flex min-h-screen" x-data="{ sidebarOpen: false }" @keydown.window.escape="sidebarOpen = false">
             @include('layouts.partials.sidebar')
 
             <div class="flex min-w-0 flex-1 flex-col">
@@ -50,5 +61,6 @@
                 </main>
             </div>
         </div>
+        @stack('scripts')
     </body>
 </html>

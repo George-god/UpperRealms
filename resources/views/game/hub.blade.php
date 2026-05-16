@@ -47,8 +47,7 @@
             'items' => [
                 ['href' => $classic('world_map.php'), 'icon' => '🧭', 'label' => __('World map'), 'desc' => __('Explore regions & NPCs')],
                 ['href' => $classic('battles.php'), 'icon' => '⚔️', 'label' => __('Battles'), 'desc' => __('PvP challenges')],
-                ['href' => $classic('dungeons.php'), 'icon' => '🏯', 'label' => __('Dungeons'), 'desc' => __('Dungeon list')],
-                ['href' => $classic('dungeon.php'), 'icon' => '🗡️', 'label' => __('Dungeon run'), 'desc' => __('Active dungeon')],
+                ['href' => route('game.dungeons.index'), 'icon' => '🏯', 'label' => __('Dungeons'), 'desc' => __('Hidden dungeons & cinematic runs')],
                 ['href' => $classic('world_boss.php'), 'icon' => '👹', 'label' => __('World boss'), 'desc' => __('Raid boss')],
                 ['href' => $classic('pve_replay.php'), 'icon' => '▶️', 'label' => __('PvE replays'), 'desc' => __('Replay logs')],
                 ['href' => $classic('battle_replay.php'), 'icon' => '▶️', 'label' => __('Battle replays'), 'desc' => __('PvP replays')],
@@ -124,7 +123,7 @@
                 'id' => 'combat',
                 'label' => __('Combat & exploration'),
                 'summary' => __('First trials and the open map.'),
-                'items' => $pickHubItemsByHref($menus[2]['items'], ['world_map.php', 'battles.php', 'dungeons.php']),
+                'items' => $pickHubItemsByHref($menus[2]['items'], ['world_map.php', 'battles.php', 'game/dungeons']),
             ],
             [
                 'id' => 'sect',
@@ -286,7 +285,7 @@
                 <x-ui.button variant="secondary" class="w-full sm:w-auto" :href="$classic('world_map.php')">
                     <span aria-hidden="true">🧭</span> {{ __('Explore') }}
                 </x-ui.button>
-                <x-ui.button variant="secondary" class="w-full sm:w-auto" :href="$classic('dungeons.php')">
+                <x-ui.button variant="secondary" class="w-full sm:w-auto" href="{{ route('game.dungeons.index') }}">
                     <span aria-hidden="true">🏯</span> {{ __('Dungeon') }}
                 </x-ui.button>
             </div>

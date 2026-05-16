@@ -81,6 +81,36 @@
         }, 200);
     }
 
+    function playDungeonHit(c) {
+        beep(c, 165, 0.09, 'triangle', 1.05);
+        beep(c, 118, 0.13, 'sawtooth', 0.42);
+    }
+
+    function playBossIntro(c) {
+        beep(c, 52, 0.28, 'sawtooth', 1.15);
+        window.setTimeout(function () {
+            beep(c, 73, 0.22, 'square', 0.55);
+        }, 130);
+        window.setTimeout(function () {
+            beep(c, 98, 0.18, 'triangle', 0.4);
+        }, 280);
+    }
+
+    function playDungeonEnd(c) {
+        beep(c, 392, 0.11, 'sine', 0.48);
+        window.setTimeout(function () {
+            beep(c, 523.25, 0.14, 'sine', 0.42);
+        }, 95);
+    }
+
+    function playLoot(c) {
+        [523.25, 659.25, 783.99, 987.77].forEach(function (f, i) {
+            window.setTimeout(function () {
+                beep(c, f, 0.09, 'sine', 0.38 - i * 0.06);
+            }, i * 55);
+        });
+    }
+
     function playSound(name) {
         if (!enabled) {
             return;
@@ -105,6 +135,18 @@
                 break;
             case 'success':
                 playSuccess(c);
+                break;
+            case 'dungeon_hit':
+                playDungeonHit(c);
+                break;
+            case 'boss_intro':
+                playBossIntro(c);
+                break;
+            case 'dungeon_end':
+                playDungeonEnd(c);
+                break;
+            case 'loot':
+                playLoot(c);
                 break;
             default:
                 playClick(c);

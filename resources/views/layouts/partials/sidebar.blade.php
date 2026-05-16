@@ -17,6 +17,19 @@
         return $realmClassicPage === $page;
     };
 
+    $realmAdmin = static fn (string $p): string => url('/game/admin/'.(str_ends_with($p, '.php') ? $p : $p.'.php'));
+
+    $realmAdminPage = null;
+    if (preg_match('#^game/admin/(.+\.php)$#i', $realmPath, $m)) {
+        $realmAdminPage = strtolower($m[1]);
+    }
+
+    $realmAdminActive = static function (string $page) use ($realmAdminPage): bool {
+        $page = strtolower(str_ends_with($page, '.php') ? $page : $page.'.php');
+
+        return $realmAdminPage === $page;
+    };
+
     $navClass = static fn (bool $active): string => $active
         ? 'flex items-center gap-3 rounded-xl bg-indigo-600/25 px-3 py-2.5 text-sm font-medium text-white ring-1 ring-indigo-400/35 shadow-[0_0_18px_-10px_rgba(99,102,241,0.45)] realm-transition'
         : 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 realm-transition hover:bg-white/5 hover:text-amber-100/90 hover:shadow-[0_0_16px_-12px_rgba(99,102,241,0.35)]';
@@ -74,7 +87,7 @@
             <span class="text-lg" aria-hidden="true">⚔️</span>
             {{ __('Combat') }}
         </a>
-        <a href="{{ $realmClassic('dungeons.php') }}" class="{{ $navClass($realmClassicActive('dungeons.php')) }}">
+        <a href="{{ route('game.dungeons.index') }}" class="{{ $navClass(request()->routeIs('game.dungeons.index') || request()->routeIs('game.dungeon.show')) }}">
             <span class="text-lg" aria-hidden="true">🏯</span>
             {{ __('Dungeons') }}
         </a>
@@ -106,6 +119,30 @@
             <span class="text-lg" aria-hidden="true">🏛️</span>
             {{ __('Sect hall') }}
         </a>
+
+        @if (auth()->check() && auth()->user()->is_admin)
+            <p class="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-cyan-500/70">{{ __('Heavenly Dao') }}</p>
+            <a href="{{ $realmAdmin('heavenly_observatory.php') }}" class="{{ $navClass($realmAdminActive('heavenly_observatory.php')) }}">
+                <span class="text-lg" aria-hidden="true">🔭</span>
+                {{ __('Observatory') }}
+            </a>
+            <a href="{{ $realmAdmin('users.php') }}" class="{{ $navClass($realmAdminActive('users.php')) }}">
+                <span class="text-lg" aria-hidden="true">👥</span>
+                {{ __('Cultivators') }}
+            </a>
+            <a href="{{ $realmAdmin('bug_reports.php') }}" class="{{ $navClass($realmAdminActive('bug_reports.php')) }}">
+                <span class="text-lg" aria-hidden="true">🌌</span>
+                {{ __('Anomalies') }}
+            </a>
+            <a href="{{ $realmAdmin('dao_petitions.php') }}" class="{{ $navClass($realmAdminActive('dao_petitions.php')) }}">
+                <span class="text-lg" aria-hidden="true">📜</span>
+                {{ __('Petitions') }}
+            </a>
+            <a href="{{ $realmAdmin('dao_commands.php') }}" class="{{ $navClass($realmAdminActive('dao_commands.php')) }}">
+                <span class="text-lg" aria-hidden="true">⚡</span>
+                {{ __('Dao commands') }}
+            </a>
+        @endif
 
         <p class="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ __('Account') }}</p>
         <a href="{{ route('profile.edit') }}" class="{{ $navClass(request()->routeIs('profile.*')) }}">

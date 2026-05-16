@@ -61,7 +61,7 @@ $highlightId = (int)($_GET['highlight'] ?? 0);
                     <?php if ($activeRun): ?>
                         <p class="text-sm text-cyan-300 mb-4">Progress: Stage <?php echo (int)$activeRun['progress'] + 1; ?> / 3</p>
                     <?php endif; ?>
-                    <a href="dungeon.php?dungeon_id=<?php echo (int)$dungeon['id']; ?>"
+                    <a href="<?php echo '/game/dungeon/'.(int)$dungeon['id']; ?>"
                        class="block text-center w-full py-2 rounded-lg font-semibold transition-all <?php echo $locked ? 'bg-gray-700 text-gray-400 pointer-events-none' : 'bg-purple-600 hover:bg-purple-500 text-white'; ?>">
                         <?php echo $locked ? 'Locked' : ($activeRun ? 'Continue Run' : 'Enter Dungeon'); ?>
                     </a>

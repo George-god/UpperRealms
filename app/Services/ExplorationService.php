@@ -8,16 +8,26 @@ use PDO;
 use PDOException;
 
 /**
- * World map exploration. Short interval between explores (same pace as cultivation),
- * up to 10 explorations per cycle, then a 30-minute long rest.
+ * World map exploration. Pacing is configured in config/game.php (exploration.*).
  */
 class ExplorationService
 {
-    /** Matches CultivationService::COOLDOWN_SECONDS — time between individual explores. */
-    private const EXPLORE_MIN_INTERVAL_SECONDS = 5;
-    private const EXPLORE_BURST_LIMIT = 10;
-    private const EXPLORE_LONG_REST_SECONDS = 1800;
     private const RUNE_FRAGMENT_TEMPLATE_ID = 56;
+
+    private function exploreMinIntervalSeconds(): int
+    {
+        return (int) config('game.exploration.min_interval_seconds', 5);
+    }
+
+    private function exploreBurstLimit(): int
+    {
+        return (int) config('game.exploration.burst_limit', 10);
+    }
+
+    private function exploreLongRestSeconds(): int
+    {
+        return (int) config('game.exploration.long_rest_seconds', 1800);
+    }
 
     /** @var array<int, bool> */
     private static array $burstColumnsByDb = [];
@@ -47,7 +57,7 @@ class ExplorationService
      */
     private function getExploreBurstPublicState(PDO $db, int $userId): array
     {
-        $max = self::EXPLORE_BURST_LIMIT;
+        $max = $this->exploreBurstLimit();
         if (!$this->userLocationHasBurstColumns($db)) {
             return ['used' => 0, 'max' => $max, 'in_long_rest' => false];
         }
@@ -59,11 +69,22 @@ class ExplorationService
                 return ['used' => 0, 'max' => $max, 'in_long_rest' => false];
             }
             $blocked = $row['explore_blocked_until'] ?? null;
-            $inLong = $blocked && strtotime((string)$blocked) > time();
+            $blockedTs = $blocked ? strtotime((string) $blocked) : false;
+            $inLong = $blocked && $blockedTs !== false && $blockedTs > time();
+            $used = (int) ($row['explore_burst_count'] ?? 0);
+            if ($inLong && $used !== 0) {
+                try {
+                    $db->prepare('UPDATE user_location SET explore_burst_count = 0 WHERE user_id = ?')->execute([$userId]);
+                    $used = 0;
+                } catch (PDOException $repairEx) {
+                    error_log('ExplorationService::getExploreBurstPublicState repair: '.$repairEx->getMessage());
+                    $used = 0;
+                }
+            }
             return [
-                'used' => (int)($row['explore_burst_count'] ?? 0),
+                'used' => $used,
                 'max' => $max,
-                'in_long_rest' => (bool)$inLong,
+                'in_long_rest' => (bool) $inLong,
             ];
         } catch (PDOException $e) {
             error_log('ExplorationService::getExploreBurstPublicState ' . $e->getMessage());
@@ -145,7 +166,7 @@ class ExplorationService
                 'current_location' => null,
                 'cooldown_remaining' => 0,
                 'explore_burst_used' => 0,
-                'explore_burst_max' => self::EXPLORE_BURST_LIMIT,
+                'explore_burst_max' => $this->exploreBurstLimit(),
                 'explore_in_long_rest' => false,
             ];
         }
@@ -166,8 +187,8 @@ class ExplorationService
                 return 0;
             }
             if ($hasBurst && !empty($row['explore_blocked_until'])) {
-                $blockTs = (int)strtotime((string)$row['explore_blocked_until']);
-                if ($blockTs > time()) {
+                $blockTs = strtotime((string) $row['explore_blocked_until']);
+                if ($blockTs !== false && $blockTs > time()) {
                     return max(0, $blockTs - time());
                 }
             }
@@ -176,7 +197,7 @@ class ExplorationService
                 return 0;
             }
             $elapsed = time() - (int)strtotime((string)$lastAt);
-            return max(0, self::EXPLORE_MIN_INTERVAL_SECONDS - $elapsed);
+            return max(0, $this->exploreMinIntervalSeconds() - $elapsed);
         } catch (PDOException $e) {
             error_log('ExplorationService::getCooldownRemaining ' . $e->getMessage());
             return 0;
@@ -478,15 +499,16 @@ class ExplorationService
 
             if ($hasBurst) {
                 $blocked = $row['explore_blocked_until'] ?? null;
-                if ($blocked && strtotime((string)$blocked) > time()) {
+                $blockedTs = $blocked ? strtotime((string) $blocked) : false;
+                if ($blocked && $blockedTs !== false && $blockedTs > time()) {
                     $db->rollBack();
-                    return max(0, (int)strtotime((string)$blocked) - time());
+                    return max(0, $blockedTs - time());
                 }
             }
 
             if ($row && !empty($row['last_explore_at'])) {
                 $elapsed = time() - (int)strtotime((string)$row['last_explore_at']);
-                $remaining = max(0, self::EXPLORE_MIN_INTERVAL_SECONDS - $elapsed);
+                $remaining = max(0, $this->exploreMinIntervalSeconds() - $elapsed);
                 if ($remaining > 0) {
                     $db->rollBack();
                     return $remaining;
@@ -495,10 +517,10 @@ class ExplorationService
 
             if ($hasBurst) {
                 $burst = $row ? (int)($row['explore_burst_count'] ?? 0) : 0;
-                $hitBurstLimit = ($burst + 1) >= self::EXPLORE_BURST_LIMIT;
+                $hitBurstLimit = ($burst + 1) >= $this->exploreBurstLimit();
                 $newBurstCount = $hitBurstLimit ? 0 : ($burst + 1);
                 $blockedUntilSql = $hitBurstLimit
-                    ? 'DATE_ADD(NOW(), INTERVAL ' . (int)self::EXPLORE_LONG_REST_SECONDS . ' SECOND)'
+                    ? 'DATE_ADD(NOW(), INTERVAL ' . (int) $this->exploreLongRestSeconds() . ' SECOND)'
                     : 'NULL';
                 if ($row) {
                     $sql = "
@@ -532,7 +554,7 @@ class ExplorationService
                 $db->rollBack();
             }
             error_log('ExplorationService::reserveExploration ' . $e->getMessage());
-            return self::EXPLORE_MIN_INTERVAL_SECONDS;
+            return $this->exploreMinIntervalSeconds();
         }
     }
 
