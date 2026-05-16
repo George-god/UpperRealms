@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\CharacterSheetController;
+use App\Http\Controllers\CodexController;
 use App\Http\Controllers\DungeonController;
 use App\Http\Controllers\GameHubController;
 use App\Http\Controllers\LegacyAssetController;
 use App\Http\Controllers\LegacyPhpController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\StoryIntroController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PveAttackController;
 use Illuminate\Support\Facades\Route;
@@ -67,7 +70,23 @@ Route::middleware(['web', 'auth', 'game.admin'])->group(function () {
 });
 
 Route::middleware(['web', 'auth', 'onboarding'])->group(function () {
-    Route::get('/game', GameHubController::class)->name('game.hub');
+    Route::get('/game/story', [StoryIntroController::class, 'show'])->name('story.intro');
+    Route::post('/game/story/action', [StoryIntroController::class, 'action'])->name('story.action');
+    Route::post('/game/story/skip', [StoryIntroController::class, 'skip'])->name('story.skip');
+
+    Route::middleware('story.intro')->group(function () {
+        Route::get('/game', GameHubController::class)->name('game.hub');
+
+    Route::get('/game/codex', [CodexController::class, 'index'])->name('game.codex');
+    Route::post('/game/codex/sync', [CodexController::class, 'sync'])->name('game.codex.sync');
+    Route::post('/game/codex/seen', [CodexController::class, 'markSeen'])->name('game.codex.seen');
+
+    Route::get('/game/character', [CharacterSheetController::class, 'show'])->name('game.character');
+    Route::get('/game/character/stats', [CharacterSheetController::class, 'stats'])->name('game.character.stats');
+    Route::post('/game/character/allocate', [CharacterSheetController::class, 'allocate'])->name('game.character.allocate');
+    Route::post('/game/character/specialization', [CharacterSheetController::class, 'specialization'])->name('game.character.specialization');
+    Route::post('/game/character/body-type', [CharacterSheetController::class, 'bodyType'])->name('game.character.body-type');
+    Route::post('/game/character/respec', [CharacterSheetController::class, 'respec'])->name('game.character.respec');
     Route::post('/game/pve-attack', [PveAttackController::class, 'store'])
         ->name('game.pve-attack');
 
@@ -81,6 +100,7 @@ Route::middleware(['web', 'auth', 'onboarding'])->group(function () {
     Route::post('/game/dungeon/{dungeon}/advance', [DungeonController::class, 'advance'])
         ->whereNumber('dungeon')
         ->name('game.dungeon.advance');
+    });
 });
 
 Route::middleware(['web', 'auth'])->group(function () {

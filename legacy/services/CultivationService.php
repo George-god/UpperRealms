@@ -89,6 +89,7 @@ class CultivationService
                 'level_up' => $levelUpResult['leveled_up'],
                 'new_level' => $levelUpResult['new_level'],
                 'new_max_chi' => $levelUpResult['new_max_chi'],
+                'attribute_stat_gains' => $levelUpResult['attribute_stat_gains'] ?? [],
                 'cooldown_remaining' => self::COOLDOWN_SECONDS,
                 'realm_level_cap_reached' => !empty($levelUpResult['blocked_by_realm_cap']),
             ];
@@ -177,12 +178,19 @@ class CultivationService
             $userId
         ]);
 
+        $attributeStatGains = [];
+        if (class_exists(\App\Services\Attributes\AttributeProgressionService::class)) {
+            $attributeStatGains = (new \App\Services\Attributes\AttributeProgressionService)
+                ->applyMinorLevelGrowth($db, $userId, $newLevel);
+        }
+
         return [
             'leveled_up' => true,
             'new_level' => $newLevel,
             'new_max_chi' => $newMaxChi,
             'chi_after' => $chiToKeep,
-            'max_chi' => $newMaxChi
+            'max_chi' => $newMaxChi,
+            'attribute_stat_gains' => $attributeStatGains,
         ];
     }
 

@@ -6,9 +6,10 @@
     $maxChi = (int) ($u->max_chi ?? max(1, $chi));
     $chiPct = $maxChi > 0 ? min(100, (int) round(100 * $chi / $maxChi)) : 0;
 
-    $realm = (int) $u->realm_id;
+    $realmId = (int) $u->realm_id;
+    $realmDisplay = \App\Support\RealmDisplay::forUser($u);
     $level = (int) $u->level;
-    $daoInsight = min(100, $realm * 11 + min(40, $level % 10 * 4));
+    $daoInsight = min(100, $realmId * 11 + min(40, $level % 10 * 4));
 
     $menus = [
         [
@@ -30,8 +31,9 @@
             'label' => __('Character & gear'),
             'summary' => __('Sheet, inventory, bloodline, artifacts'),
             'items' => [
-                ['href' => $classic('character_sheet.php'), 'icon' => '📋', 'label' => __('Character sheet'), 'desc' => __('Stats, Dao, gear breakdown')],
-                ['href' => $classic('inventory.php'), 'icon' => '🎒', 'label' => __('Inventory'), 'desc' => __('Items & consumables')],
+                ['href' => route('game.character'), 'icon' => '📋', 'label' => __('Character sheet'), 'desc' => __('Attributes, builds, combat breakdown')],
+                ['href' => route('game.codex'), 'icon' => '📚', 'label' => __('Codex'), 'desc' => __('Lore archive — realms, foes, relics, history')],
+                ['href' => $classic('inventory.php'), 'icon' => '🎒', 'label' => __('Inventory'), 'desc' => __('Items, gear & cultivation manuals')],
                 ['href' => $classic('equipment.php'), 'icon' => '🛡️', 'label' => __('Equipment'), 'desc' => __('Equip gear')],
                 ['href' => $classic('bloodline.php'), 'icon' => '🩸', 'label' => __('Bloodline'), 'desc' => __('Awakening & evolution')],
                 ['href' => $classic('artifacts.php'), 'icon' => '✦', 'label' => __('Artifacts'), 'desc' => __('Relics & auras')],
@@ -222,7 +224,7 @@
                                 {{ __('Welcome back — your aura stirs the veil between realms.') }}
                             </p>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                                <span class="rounded-lg border border-indigo-500/25 bg-indigo-950/30 px-2.5 py-1 text-indigo-200/90">{{ __('Realm') }} {{ $realm }}</span>
+                                <span class="rounded-lg border border-indigo-500/25 bg-indigo-950/30 px-2.5 py-1 text-indigo-200/90">{{ $realmDisplay }}</span>
                                 <span class="rounded-lg border border-amber-500/25 bg-amber-950/20 px-2.5 py-1 text-amber-100/90">{{ __('Level') }} {{ $level }}</span>
                                 <span class="rounded-lg border border-sky-500/25 bg-sky-950/20 px-2.5 py-1 text-sky-100/90">{{ __('Rating') }} {{ $u->rating }}</span>
                             </div>
@@ -266,7 +268,7 @@
         <div>
             <h3 class="mb-3 font-cinzel text-sm font-semibold uppercase tracking-wider text-slate-500">{{ __('Vitals') }}</h3>
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <x-ui.stat-box :label="__('Realm')" :value="(string) $realm" accent="indigo" />
+                <x-ui.stat-box :label="__('Realm')" :value="$realmDisplay" accent="indigo" />
                 <x-ui.stat-box :label="__('Level')" :value="(string) $level" accent="gold" />
                 <x-ui.stat-box :label="__('Attack')" :value="(string) $u->attack" accent="red" />
                 <x-ui.stat-box :label="__('Defense')" :value="(string) $u->defense" accent="blue" />

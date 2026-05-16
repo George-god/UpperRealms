@@ -23,6 +23,9 @@ class StatCalculator
     /** @var array<int, float> Realm multipliers are global; safe to cache per process. */
     private static array $realmMultiplierById = [];
 
+    /** @var array<int, string> */
+    private static array $realmNameById = [];
+
     /**
      * Calculate final combat stats for a user.
      * Order: base stats -> equipment -> realm -> scroll -> Dao Path.
@@ -47,6 +50,9 @@ class StatCalculator
             $this->applyBloodlineBonuses($this->applyTitleBonuses($finalStats, $userId), $userId),
             $userId
         );
+        if (class_exists(\App\Services\Attributes\AttributeCalculator::class)) {
+            $finalStats = (new \App\Services\Attributes\AttributeCalculator)->applyToFinalStats($baseStats, $finalStats);
+        }
         $equipmentBonus = $this->getEquippedItemBonusesSummary($userId);
 
         $this->finalStatsCache[$userId] = [
@@ -76,6 +82,8 @@ class StatCalculator
             $db = Database::getConnection();
             $stmt = $db->prepare("
                 SELECT u.id, u.realm_id, u.level, u.chi, u.max_chi, u.attack, u.defense, u.active_scroll_type,
+                       u.strength, u.agility, u.vitality, u.spirit, u.soul, u.willpower,
+                       u.attribute_points, u.stat_specialization, u.body_type,
                        d.path_key AS dao_path_key, d.name AS dao_path_name, d.alignment AS dao_alignment,
                        d.element AS dao_element, d.attack_bonus_pct, d.defense_bonus_pct, d.max_chi_bonus_pct,
                        d.dodge_bonus_pct, d.bonus_damage_pct, d.heal_on_hit_pct, d.reflect_damage_pct,
@@ -111,6 +119,15 @@ class StatCalculator
                 'dao_reflect_damage_pct' => (float)($user['reflect_damage_pct'] ?? 0.0),
                 'dao_self_damage_pct' => (float)($user['self_damage_pct'] ?? 0.0),
                 'dao_favored_tribulation' => !empty($user['favored_tribulation']) ? (string)$user['favored_tribulation'] : null,
+                'strength' => (int)($user['strength'] ?? 5),
+                'agility' => (int)($user['agility'] ?? 5),
+                'vitality' => (int)($user['vitality'] ?? 5),
+                'spirit' => (int)($user['spirit'] ?? 5),
+                'soul' => (int)($user['soul'] ?? 5),
+                'willpower' => (int)($user['willpower'] ?? 5),
+                'attribute_points' => (int)($user['attribute_points'] ?? 0),
+                'stat_specialization' => $user['stat_specialization'] ?? null,
+                'body_type' => $user['body_type'] ?? null,
             ];
         } catch (PDOException $e) {
             error_log("StatCalculator::getBaseStats " . $e->getMessage());
@@ -471,6 +488,26 @@ class StatCalculator
         ];
     }
 
+    private function getRealmName(int $realmId): string
+    {
+        if (isset(self::$realmNameById[$realmId])) {
+            return self::$realmNameById[$realmId];
+        }
+
+        try {
+            $db = Database::getConnection();
+            $stmt = $db->prepare('SELECT name FROM realms WHERE id = ? LIMIT 1');
+            $stmt->execute([$realmId]);
+            $name = $stmt->fetchColumn();
+            self::$realmNameById[$realmId] = is_string($name) ? $name : '';
+        } catch (\Throwable $e) {
+            error_log('StatCalculator::getRealmName '.$e->getMessage());
+            self::$realmNameById[$realmId] = '';
+        }
+
+        return self::$realmNameById[$realmId];
+    }
+
     /**
      * Single realm multiplier (controlled exponential scaling). Fallback 1.0 if column missing.
      */
@@ -484,6 +521,9 @@ class StatCalculator
             $stmt = $db->prepare("SELECT * FROM realms WHERE id = ? LIMIT 1");
             $stmt->execute([$realmId]);
             $row = $stmt->fetch();
+            if ($row && isset($row['name']) && is_string($row['name'])) {
+                self::$realmNameById[$realmId] = $row['name'];
+            }
             $m = ($row && isset($row['multiplier'])) ? (float)$row['multiplier'] : 1.0;
             self::$realmMultiplierById[$realmId] = $m;
             return $m;
@@ -536,6 +576,8 @@ class StatCalculator
 
         $realmId = (int)($base['realm_id'] ?? 1);
         $realmMult = $this->getRealmMultiplier($realmId);
+        $realmName = $this->getRealmName($realmId);
+        $realmLabel = $realmName !== '' ? 'Realm — '.$realmName : 'Realm #'.$realmId;
 
         $afterEquipment = $this->applyEquippedItemBonuses($base, $userId);
         $afterRealm = $this->applyRealmTierMultiplier($afterEquipment);
@@ -550,6 +592,7 @@ class StatCalculator
 
         return [
             'realm_id' => $realmId,
+            'realm_name' => $realmName,
             'realm_multiplier' => $realmMult,
             'active_scroll_type' => $scrollType,
             'active_scroll_label' => $this->describeActiveScroll((string)($scrollType ?? '')),
@@ -569,8 +612,8 @@ class StatCalculator
                 ],
                 [
                     'key' => 'realm',
-                    'label' => 'After realm tier ×' . rtrim(rtrim((string)round($realmMult, 4), '0'), '.'),
-                    'note' => 'Realm multiplier on attack, defense, and max chi.',
+                    'label' => 'After '.$realmLabel.' tier ×' . rtrim(rtrim((string)round($realmMult, 4), '0'), '.'),
+                    'note' => $realmLabel.' multiplier on attack, defense, and max chi.',
                     'stats' => $this->snapshotCore($afterRealm),
                 ],
                 [

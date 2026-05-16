@@ -27,7 +27,7 @@ class OnboardingController extends Controller
             $user->forceFill(['onboarding_step' => 1])->save();
         }
 
-        return redirect()->route('game.hub');
+        return redirect()->route('story.intro');
     }
 
     public function skip(Request $request): RedirectResponse

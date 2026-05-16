@@ -72,6 +72,10 @@ class ItemService
             $db->prepare("UPDATE equipment_slots SET {$slotColumn} = ? WHERE user_id = ?")->execute([$inventoryId, $userId]);
             $db->prepare("UPDATE inventory SET is_equipped = 1 WHERE id = ?")->execute([$inventoryId]);
             $db->commit();
+            if (function_exists('game_stat_invalidate')) {
+                game_stat_invalidate($userId, 'equipment');
+            }
+
             return ['success' => true, 'message' => 'Item equipped.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) $db->rollBack();
@@ -103,6 +107,10 @@ class ItemService
             $db->prepare("UPDATE equipment_slots SET {$column} = NULL WHERE user_id = ?")->execute([$userId]);
             $db->prepare("UPDATE inventory SET is_equipped = 0 WHERE id = ?")->execute([$invId]);
             $db->commit();
+            if (function_exists('game_stat_invalidate')) {
+                game_stat_invalidate($userId, 'equipment');
+            }
+
             return ['success' => true, 'message' => 'Item unequipped.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) $db->rollBack();

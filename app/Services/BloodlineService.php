@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Stats\StatInvalidator;
 use App\Support\PdoDatabase;
 use PDO;
 use PDOException;
@@ -696,6 +697,8 @@ class BloodlineService
             $db->prepare('UPDATE user_bloodlines SET is_active = 0 WHERE user_id = ?')->execute([$userId]);
             $db->prepare('UPDATE user_bloodlines SET is_active = 1 WHERE user_id = ? AND bloodline_id = ?')
                 ->execute([$userId, $bloodlineId]);
+            $this->invalidatePlayerStats($userId, 'bloodline');
+
             return ['success' => true, 'message' => 'Your active bloodline has been switched. Passives and bloodline effects now follow this lineage.'];
         } catch (PDOException $e) {
             error_log('BloodlineService::setActiveBloodline ' . $e->getMessage());
@@ -1154,5 +1157,14 @@ class BloodlineService
             error_log('BloodlineService::attemptBloodlineEvolution ' . $e->getMessage());
             return ['success' => false, 'error' => 'Evolution ritual failed.'];
         }
+    }
+
+    private function invalidatePlayerStats(int $userId, string $reason): void
+    {
+        if (! function_exists('app') || ! app()->bound(StatInvalidator::class)) {
+            return;
+        }
+
+        app(StatInvalidator::class)->invalidate($userId, $reason);
     }
 }

@@ -29,6 +29,13 @@ final class DaoRecordLogger
             return self::logViaPdo($db, $eventType, $userId, $targetId, $description, $contextData);
         }
 
+        if (config('stats.log_dao_records_debug', false)) {
+            $contextData['_debug'] = array_merge($contextData['_debug'] ?? [], [
+                'logged_at' => gmdate('c'),
+                'app_env' => (string) config('app.env'),
+            ]);
+        }
+
         try {
             GameDaoRecord::query()->create([
                 'event_type' => $eventType,

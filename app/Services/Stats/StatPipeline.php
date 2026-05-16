@@ -13,6 +13,7 @@ final class StatPipeline
 {
     public function __construct(
         private readonly StatCalculator $calculator,
+        private readonly PlayerStatCache $cache,
     ) {}
 
     /**
@@ -20,7 +21,7 @@ final class StatPipeline
      */
     public function calculateFinalStats(int $userId): array
     {
-        return $this->calculator->calculateFinalStats($userId);
+        return $this->cache->get($userId);
     }
 
     public function calculator(): StatCalculator

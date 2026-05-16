@@ -47,7 +47,7 @@
                 {{ __('Boss') }}: <span class="font-medium text-white">{{ $dungeon['boss_name'] ?? '' }}</span>
             </p>
             <p class="mb-2 text-slate-400">
-                {{ __('Requires') }}: <span class="font-medium text-white">{{ $dungeon['min_realm_name'] ?? __('Qi Refining') }}</span>
+                {{ __('Requires') }}: <span class="font-medium text-white">{{ \App\Support\RealmDisplay::label($dungeon['min_realm_name'] ?? null, (int) ($dungeon['min_realm_id'] ?? 0) ?: null) }}</span>
             </p>
             <p class="text-sm text-slate-500">{{ __('Daily runs remaining:') }} {{ $runsRemaining }} / 3</p>
         </div>
@@ -216,7 +216,7 @@
         <div class="rounded-xl border border-slate-700/80 bg-slate-950/50 p-6 shadow-inner backdrop-blur-md">
             @if ($locked)
                 <p class="text-amber-300">
-                    {{ __('Requires') }} {{ $dungeon['min_realm_name'] ?? __('Qi Refining') }} {{ __('to enter.') }}
+                    {{ __('Requires') }} {{ \App\Support\RealmDisplay::label($dungeon['min_realm_name'] ?? null, (int) ($dungeon['min_realm_id'] ?? 0) ?: null) }} {{ __('to enter.') }}
                 </p>
             @elseif ($activeRun)
                 <h2 class="mb-2 text-xl font-semibold text-violet-300">{{ $stagePreview['label'] ?? __('Next stage') }}</h2>

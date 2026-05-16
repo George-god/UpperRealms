@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -29,6 +30,16 @@ class User extends Authenticatable
         'max_chi',
         'attack',
         'defense',
+        'strength',
+        'agility',
+        'vitality',
+        'spirit',
+        'soul',
+        'willpower',
+        'attribute_points',
+        'stat_specialization',
+        'body_type',
+        'attribute_respec_count',
         'wins',
         'losses',
         'rating',
@@ -59,5 +70,10 @@ class User extends Authenticatable
     public function getAuthPassword(): string
     {
         return (string) $this->password_hash;
+    }
+
+    public function realm(): BelongsTo
+    {
+        return $this->belongsTo(Realm::class, 'realm_id');
     }
 }

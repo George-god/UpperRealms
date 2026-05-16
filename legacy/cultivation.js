@@ -331,11 +331,14 @@
                         realmFx('critFlash');
                     }
                     if (d.chi_gained && d.chi_gained > 0) {
+                        var levelMsg = d.level_up ? 'Level up! Level ' + d.new_level + '.' : 'Gained ' + formatNum(d.chi_gained) + ' chi.';
+                        if (d.level_up && d.attribute_stat_gains && d.attribute_stat_gains.length) {
+                            levelMsg += ' ' + d.attribute_stat_gains.map(function (g) {
+                                return '+' + g.amount + ' ' + (g.label || g.stat);
+                            }).join(', ') + '.';
+                        }
                         showStatus(
-                            (tier === 'perfect' ? 'Flawless gain! ' : '') +
-                                (d.level_up
-                                    ? 'Level up! Level ' + d.new_level + '.'
-                                    : 'Gained ' + formatNum(d.chi_gained) + ' chi.'),
+                            (tier === 'perfect' ? 'Flawless gain! ' : '') + levelMsg,
                             false
                         );
                     } else if (d.realm_level_cap_reached) {

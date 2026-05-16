@@ -58,7 +58,14 @@ if (!$result['success']) {
 
 // Centralized stats: use StatCalculator for final display values if needed; here we return DB base + result
 $db = \Game\Config\Database::getConnection();
-$stmt = $db->prepare("SELECT chi, max_chi, level, attack, defense FROM users WHERE id = ? LIMIT 1");
+$userCols = 'chi, max_chi, level, attack, defense';
+try {
+    $db->query('SELECT strength FROM users LIMIT 0');
+    $userCols .= ', strength, agility, vitality, spirit, soul, willpower, attribute_points';
+} catch (\PDOException $e) {
+    // Attribute columns not migrated yet.
+}
+$stmt = $db->prepare("SELECT {$userCols} FROM users WHERE id = ? LIMIT 1");
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
 
@@ -76,6 +83,7 @@ $payload = [
     'level_up' => !empty($result['level_up']),
     'new_level' => isset($result['new_level']) ? (int)$result['new_level'] : null,
     'new_max_chi' => isset($result['new_max_chi']) ? (int)$result['new_max_chi'] : null,
+    'attribute_stat_gains' => $result['attribute_stat_gains'] ?? [],
     'cooldown_remaining' => $cooldownRemaining,
     'realm_progress_percent' => (int)($realmUi['realm_progress_percent'] ?? 0),
     'next_realm_required_level' => isset($realmUi['next_realm']['required_level']) ? (int)$realmUi['next_realm']['required_level'] : null,

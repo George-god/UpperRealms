@@ -85,26 +85,60 @@ class ExplorationService
     }
 
     /**
+     * Fix inconsistent rows (e.g. long-rest timer active while burst count is still mid-cycle).
+     */
+    private function repairExplorePacingState(PDO $db, int $userId): void
+    {
+        if (! $this->userLocationHasBurstColumns($db)) {
+            return;
+        }
+        try {
+            $stmt = $db->prepare('SELECT explore_burst_count, explore_blocked_until FROM user_location WHERE user_id = ? LIMIT 1');
+            $stmt->execute([$userId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (! $row) {
+                return;
+            }
+            $used = (int) ($row['explore_burst_count'] ?? 0);
+            $blocked = $row['explore_blocked_until'] ?? null;
+            if ($blocked === null || $blocked === '') {
+                return;
+            }
+            $blockedTs = strtotime((string) $blocked);
+            if ($blockedTs === false || $blockedTs <= time()) {
+                $db->prepare('UPDATE user_location SET explore_blocked_until = NULL WHERE user_id = ?')->execute([$userId]);
+
+                return;
+            }
+            if ($used > 0) {
+                $db->prepare('UPDATE user_location SET explore_blocked_until = NULL WHERE user_id = ?')->execute([$userId]);
+            }
+        } catch (PDOException $e) {
+            error_log('ExplorationService::repairExplorePacingState '.$e->getMessage());
+        }
+    }
+
+    /**
      * @return array{used: int, max: int, in_long_rest: bool}
      */
     private function getExploreBurstPublicState(PDO $db, int $userId): array
     {
         $max = $this->exploreBurstLimit();
-        if (!$this->userLocationHasBurstColumns($db)) {
+        if (! $this->userLocationHasBurstColumns($db)) {
             return ['used' => 0, 'max' => $max, 'in_long_rest' => false];
         }
         try {
+            $this->repairExplorePacingState($db, $userId);
             $stmt = $db->prepare('SELECT explore_burst_count, explore_blocked_until FROM user_location WHERE user_id = ? LIMIT 1');
             $stmt->execute([$userId]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-            if (!$row) {
+            if (! $row) {
                 return ['used' => 0, 'max' => $max, 'in_long_rest' => false];
             }
             $blocked = $row['explore_blocked_until'] ?? null;
             $blockedTs = $blocked ? strtotime((string) $blocked) : false;
             $inLong = $blocked && $blockedTs !== false && $blockedTs > time();
             $used = (int) ($row['explore_burst_count'] ?? 0);
-            // Long rest starts when a burst completes; counter should be 0. Repair stale rows (e.g. legacy data / partial updates).
             if ($inLong && $used !== 0) {
                 try {
                     $db->prepare('UPDATE user_location SET explore_burst_count = 0 WHERE user_id = ?')->execute([$userId]);
@@ -114,14 +148,61 @@ class ExplorationService
                     $used = 0;
                 }
             }
+
             return [
                 'used' => $used,
                 'max' => $max,
                 'in_long_rest' => (bool) $inLong,
             ];
         } catch (PDOException $e) {
-            error_log('ExplorationService::getExploreBurstPublicState ' . $e->getMessage());
+            error_log('ExplorationService::getExploreBurstPublicState '.$e->getMessage());
+
             return ['used' => 0, 'max' => $max, 'in_long_rest' => false];
+        }
+    }
+
+    /**
+     * @return array{remaining: int, kind: 'none'|'interval'|'long_rest'}
+     */
+    public function getExploreCooldownMeta(int $userId): array
+    {
+        try {
+            $db = Database::getConnection();
+            $hasBurst = $this->userLocationHasBurstColumns($db);
+            if ($hasBurst) {
+                $this->repairExplorePacingState($db, $userId);
+            }
+            $stmt = $db->prepare(
+                $hasBurst
+                    ? 'SELECT last_explore_at, explore_blocked_until FROM user_location WHERE user_id = ? LIMIT 1'
+                    : 'SELECT last_explore_at FROM user_location WHERE user_id = ? LIMIT 1'
+            );
+            $stmt->execute([$userId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (! $row) {
+                return ['remaining' => 0, 'kind' => 'none'];
+            }
+            if ($hasBurst && ! empty($row['explore_blocked_until'])) {
+                $blockTs = strtotime((string) $row['explore_blocked_until']);
+                if ($blockTs !== false && $blockTs > time()) {
+                    return ['remaining' => max(0, $blockTs - time()), 'kind' => 'long_rest'];
+                }
+            }
+            $lastAt = $row['last_explore_at'] ?? null;
+            if ($lastAt === null || $lastAt === '') {
+                return ['remaining' => 0, 'kind' => 'none'];
+            }
+            $elapsed = time() - (int) strtotime((string) $lastAt);
+            $remaining = max(0, $this->exploreMinIntervalSeconds() - $elapsed);
+
+            return [
+                'remaining' => $remaining,
+                'kind' => $remaining > 0 ? 'interval' : 'none',
+            ];
+        } catch (PDOException $e) {
+            error_log('ExplorationService::getExploreCooldownMeta '.$e->getMessage());
+
+            return ['remaining' => 0, 'kind' => 'none'];
         }
     }
 
@@ -133,8 +214,10 @@ class ExplorationService
     {
         try {
             $db = Database::getConnection();
-            $payload['cooldown_remaining'] = $this->getCooldownRemaining($userId);
+            $cooldown = $this->getExploreCooldownMeta($userId);
             $burst = $this->getExploreBurstPublicState($db, $userId);
+            $payload['cooldown_remaining'] = $cooldown['remaining'];
+            $payload['explore_cooldown_kind'] = $cooldown['kind'];
             $payload['explore_burst_used'] = $burst['used'];
             $payload['explore_burst_max'] = $burst['max'];
             $payload['explore_in_long_rest'] = $burst['in_long_rest'];
@@ -173,7 +256,7 @@ class ExplorationService
                 ORDER BY wr.min_realm_id ASC, wr.difficulty ASC, wr.id ASC
             ");
             $regions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            $cooldownRemaining = $this->getCooldownRemaining($userId);
+            $cooldown = $this->getExploreCooldownMeta($userId);
             $burst = $this->getExploreBurstPublicState($db, $userId);
 
             foreach ($regions as &$region) {
@@ -186,7 +269,8 @@ class ExplorationService
                 'regions' => $regions,
                 'user_realm_id' => $userRealmId,
                 'current_location' => $location,
-                'cooldown_remaining' => $cooldownRemaining,
+                'cooldown_remaining' => $cooldown['remaining'],
+                'explore_cooldown_kind' => $cooldown['kind'],
                 'explore_burst_used' => $burst['used'],
                 'explore_burst_max' => $burst['max'],
                 'explore_in_long_rest' => $burst['in_long_rest'],
@@ -198,6 +282,7 @@ class ExplorationService
                 'user_realm_id' => 1,
                 'current_location' => null,
                 'cooldown_remaining' => 0,
+                'explore_cooldown_kind' => 'none',
                 'explore_burst_used' => 0,
                 'explore_burst_max' => $this->exploreBurstLimit(),
                 'explore_in_long_rest' => false,
@@ -207,34 +292,7 @@ class ExplorationService
 
     public function getCooldownRemaining(int $userId): int
     {
-        try {
-            $db = Database::getConnection();
-            $hasBurst = $this->userLocationHasBurstColumns($db);
-            $cols = $hasBurst
-                ? 'last_explore_at, explore_blocked_until'
-                : 'last_explore_at';
-            $stmt = $db->prepare("SELECT {$cols} FROM user_location WHERE user_id = ? LIMIT 1");
-            $stmt->execute([$userId]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$row) {
-                return 0;
-            }
-            if ($hasBurst && !empty($row['explore_blocked_until'])) {
-                $blockTs = strtotime((string) $row['explore_blocked_until']);
-                if ($blockTs !== false && $blockTs > time()) {
-                    return max(0, $blockTs - time());
-                }
-            }
-            $lastAt = $row['last_explore_at'] ?? null;
-            if ($lastAt === null || $lastAt === '') {
-                return 0;
-            }
-            $elapsed = time() - (int)strtotime((string)$lastAt);
-            return max(0, $this->exploreMinIntervalSeconds() - $elapsed);
-        } catch (PDOException $e) {
-            error_log('ExplorationService::getCooldownRemaining ' . $e->getMessage());
-            return 0;
-        }
+        return $this->getExploreCooldownMeta($userId)['remaining'];
     }
 
     public function exploreRegion(int $userId, int $regionId): array
@@ -308,7 +366,10 @@ class ExplorationService
                     'boss_name' => (string)$dungeon['boss_name'],
                     'locked' => $locked,
                     'min_realm_id' => (int)$dungeon['min_realm_id'],
-                    'min_realm_name' => (string)($dungeon['min_realm_name'] ?? 'Qi Refining'),
+                    'min_realm_name' => $this->formatRealmDisplayLabel(
+                        (string)($dungeon['min_realm_name'] ?? ''),
+                        (int)$dungeon['min_realm_id']
+                    ),
                 ],
             ],
         ];
@@ -521,6 +582,9 @@ class ExplorationService
         try {
             $db = Database::getConnection();
             $hasBurst = $this->userLocationHasBurstColumns($db);
+            if ($hasBurst) {
+                $this->repairExplorePacingState($db, $userId);
+            }
             $db->beginTransaction();
 
             $selectCols = $hasBurst
@@ -702,6 +766,13 @@ class ExplorationService
             error_log('ExplorationService::getTemplateById ' . $e->getMessage());
             return null;
         }
+    }
+
+    private function formatRealmDisplayLabel(?string $realmName, int $realmId): string
+    {
+        require_once dirname(__DIR__).'/includes/realm_display.php';
+
+        return realm_display_label($realmName, $realmId > 0 ? $realmId : null);
     }
 
     private function pickDungeonForRegion(int $regionId): ?array

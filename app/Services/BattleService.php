@@ -342,7 +342,8 @@ class BattleService
         $damageReduction = $this->consumeTechniqueFloat($defenderTechniqueState, 'next_damage_reduction');
         $reflectBonus = $this->consumeTechniqueFloat($defenderTechniqueState, 'next_reflect_bonus');
         $dodgeChance = self::DODGE_CHANCE_BASE + ($defenderRealmLevel * 0.005) + (float)($defenderStats['dao_dodge_bonus'] ?? 0.0)
-            + (float)($defenderStats['bloodline_dodge_bonus'] ?? 0.0) + (float)($defenderStats['artifact_dodge_bonus'] ?? 0.0) + $dodgeBonus;
+            + (float)($defenderStats['bloodline_dodge_bonus'] ?? 0.0) + (float)($defenderStats['artifact_dodge_bonus'] ?? 0.0)
+            + (float)($defenderStats['attribute_dodge_bonus'] ?? 0.0) + $dodgeBonus;
         $npcDodge = $defenderNpcId !== null ? (float)($defenderStats['dodge_chance'] ?? 0.05) : 0;
         $dodgeChance = min(0.95, $dodgeChance + $npcDodge);
         $isDodged = (mt_rand(1, 10000) / 100) <= ($dodgeChance * 100);
@@ -385,11 +386,13 @@ class BattleService
             $techniqueHealAmount = $techniqueResolution['heal_amount'];
         }
         $critChance = self::CRITICAL_STRIKE_CHANCE + (float)($attackerStats['bloodline_crit_chance_bonus'] ?? 0.0)
-            + (float)($attackerStats['artifact_crit_chance_bonus'] ?? 0.0);
+            + (float)($attackerStats['artifact_crit_chance_bonus'] ?? 0.0)
+            + (float)($attackerStats['attribute_crit_chance_bonus'] ?? 0.0);
         $critChance = min(0.95, max(0.0, $critChance));
         $isCritical = (mt_rand(1, 10000) / 10000.0) <= $critChance;
         if ($isCritical) {
-            $baseDamage = (int)($baseDamage * self::CRITICAL_DAMAGE_MULTIPLIER);
+            $critMult = self::CRITICAL_DAMAGE_MULTIPLIER + (float)($attackerStats['attribute_crit_damage_bonus'] ?? 0.0);
+            $baseDamage = (int)($baseDamage * max(1.1, $critMult));
         }
         if ((float)($attackerStats['dao_bonus_damage_pct'] ?? 0.0) > 0) {
             $baseDamage += (int)round($baseDamage * (float)$attackerStats['dao_bonus_damage_pct']);

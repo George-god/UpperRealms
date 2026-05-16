@@ -54,7 +54,7 @@
                     <p class="text-[11px] text-slate-400">
                         {{ __('Lv.') }} {{ (int) $u->level }}
                         <span class="text-slate-600">·</span>
-                        {{ __('Realm') }} {{ (int) $u->realm_id }}
+                        {{ \App\Support\RealmDisplay::forUser($u) }}
                     </p>
                 </div>
             </div>

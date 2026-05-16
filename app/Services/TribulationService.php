@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Attributes\CharacterBuildService;
+use App\Services\Stats\StatInvalidator;
 use App\Support\PdoDatabase;
 use PDO;
 use PDOException;
@@ -453,6 +455,9 @@ class TribulationService
                 SET realm_id = ?, chi = ?, breakthrough_attempts = 0, active_scroll_type = NULL
                 WHERE id = ?
             ")->execute([$realmIdAfter, $endChi, $userId]);
+            (new CharacterBuildService)->grantBreakthroughPoints($userId, $realmIdAfter);
+            $this->invalidatePlayerStats($userId, 'realm');
+
             return;
         }
 
@@ -563,5 +568,14 @@ class TribulationService
     private function getTribulationLabel(string $tribulationType): string
     {
         return (string)(self::TRIBULATION_TYPES[$tribulationType]['label'] ?? 'Unknown Tribulation');
+    }
+
+    private function invalidatePlayerStats(int $userId, string $reason): void
+    {
+        if (! function_exists('app') || ! app()->bound(StatInvalidator::class)) {
+            return;
+        }
+
+        app(StatInvalidator::class)->invalidate($userId, $reason);
     }
 }

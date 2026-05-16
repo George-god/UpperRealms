@@ -1,6 +1,9 @@
 @import './realm-animations.css';
 @import './realm-visual-fx.css';
 @import './dungeon-combat.css';
+@import './character-build.css';
+@import './codex.css';
+@import './story-intro.css';
 
 @tailwind base;
 @tailwind components;

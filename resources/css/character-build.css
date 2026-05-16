@@ -1,0 +1,28 @@
+.character-build .character-stat-card {
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.character-build .character-stat-card:hover {
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 0 24px -12px rgba(99, 102, 241, 0.35);
+}
+
+.character-stat-bar-fill {
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+}
+
+.character-stat-bar-pulse {
+    animation: character-stat-pulse 0.55s ease-out;
+}
+
+@keyframes character-stat-pulse {
+    0% {
+        filter: brightness(1);
+    }
+    40% {
+        filter: brightness(1.45);
+    }
+    100% {
+        filter: brightness(1);
+    }
+}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/bootstrap.php';
 require_once dirname(__DIR__) . '/core/SessionHelper.php';
 require_once dirname(__DIR__) . '/services/DungeonService.php';
+require_once dirname(__DIR__) . '/includes/realm_display.php';
 
 use Game\Helper\SessionHelper;
 use Game\Service\DungeonService;
@@ -142,7 +143,7 @@ if ($activeRun) {
             <p class="text-slate-400 mb-2">Region: <span class="text-white font-medium"><?php echo htmlspecialchars($dungeon['region_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span></p>
             <p class="text-slate-400 mb-2">Difficulty: <span class="text-white font-medium"><?php echo (int)($dungeon['difficulty'] ?? 1); ?></span></p>
             <p class="text-slate-400 mb-2">Boss: <span class="text-white font-medium"><?php echo htmlspecialchars($dungeon['boss_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span></p>
-            <p class="text-slate-400 mb-2">Requires: <span class="text-white font-medium"><?php echo htmlspecialchars($dungeon['min_realm_name'] ?? 'Qi Refining', ENT_QUOTES, 'UTF-8'); ?></span></p>
+            <p class="text-slate-400 mb-2">Requires: <span class="text-white font-medium"><?php echo htmlspecialchars(realm_display_label($dungeon['min_realm_name'] ?? null, (int)($dungeon['min_realm_id'] ?? 0) ?: null), ENT_QUOTES, 'UTF-8'); ?></span></p>
             <p class="text-sm text-slate-500">Daily runs remaining: <?php echo $runsRemaining; ?> / 3</p>
         </div>
 
@@ -279,7 +280,7 @@ if ($activeRun) {
 
         <div class="bg-gray-900/70 backdrop-blur-md border border-slate-700/80 rounded-xl p-6 shadow-inner">
             <?php if ($locked): ?>
-                <p class="text-amber-300">Requires <?php echo htmlspecialchars($dungeon['min_realm_name'] ?? 'Qi Refining', ENT_QUOTES, 'UTF-8'); ?> to enter.</p>
+                <p class="text-amber-300">Requires <?php echo htmlspecialchars(realm_display_label($dungeon['min_realm_name'] ?? null, (int)($dungeon['min_realm_id'] ?? 0) ?: null), ENT_QUOTES, 'UTF-8'); ?> to enter.</p>
             <?php elseif ($activeRun): ?>
                 <h2 class="text-xl font-semibold text-violet-300 mb-2"><?php echo htmlspecialchars($stagePreview['label'] ?? 'Next Stage', ENT_QUOTES, 'UTF-8'); ?></h2>
                 <p class="text-sm text-slate-400 mb-4">Enemy: <span class="text-slate-200"><?php echo htmlspecialchars($stagePreview['enemy_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span></p>

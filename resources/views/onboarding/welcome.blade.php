@@ -45,11 +45,11 @@
                         <p class="text-sm text-slate-500">{{ __('The Heavenly Dao watches. World events shift fate for all—your timing will matter.') }}</p>
                     </div>
                     <div x-show="slide === 2" x-transition.opacity.duration.300ms class="space-y-4" style="display: none;">
-                        <h1 class="font-cinzel text-2xl font-semibold text-indigo-100 sm:text-3xl">{{ __('Your path begins') }}</h1>
+                        <h1 class="font-cinzel text-2xl font-semibold text-indigo-100 sm:text-3xl">{{ __('Spirit Veil Forest') }}</h1>
                         <p class="text-sm leading-relaxed text-slate-400">
-                            {{ __('We will open the realm command hall with a gentle trail: sect, meditation, a first fight, and a step into the map. You may always skip and explore freely.') }}
+                            {{ __('You will awaken in a forest that should kill mortals. Memory fragments, a cautious herbalist named Lin Mei, and the first breath of qi await.') }}
                         </p>
-                        <p class="text-sm font-medium text-amber-200/90">{{ __('When you are ready, enter the hall.') }}</p>
+                        <p class="text-sm font-medium text-amber-200/90">{{ __('When you are ready, step into the mist.') }}</p>
                     </div>
                 </div>
 
@@ -77,7 +77,7 @@
                                 type="submit"
                                 class="w-full rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_0_28px_-8px_rgba(245,158,11,0.45)] transition hover:from-amber-500 hover:to-amber-400 sm:w-auto"
                             >
-                                {{ __('Enter the realm hall') }}
+                                {{ __('Awaken in the forest') }}
                             </button>
                         </form>
                     </div>

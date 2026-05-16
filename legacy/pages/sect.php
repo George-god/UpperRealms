@@ -133,7 +133,13 @@ $isLeader = $mySect && (string)($mySect['rank'] ?? $mySect['role'] ?? '') === 'l
             <p class="text-gray-400 text-sm mb-1">Tier: <strong class="text-white"><?php echo htmlspecialchars(ucfirst((string)$mySect['tier']), ENT_QUOTES, 'UTF-8'); ?></strong> · Sect EXP: <?php echo number_format((int)($mySect['sect_exp'] ?? 0)); ?> · Diplomatic reputation: <strong class="text-violet-300"><?php echo number_format((int)($mySect['sect_reputation'] ?? 1000)); ?></strong></p>
             <p class="text-gray-500 text-xs mb-4">Your rank: <strong><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', (string)($mySect['rank'] ?? $mySect['role'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?></strong>. Bonuses: +<?php echo number_format((float)($mySect['bonuses']['cultivation_speed'] ?? 0) * 100, 1); ?>% cultivation, +<?php echo number_format((float)($mySect['bonuses']['gold_gain'] ?? 0) * 100, 1); ?>% gold<?php if ((float)($mySect['bonuses']['breakthrough'] ?? 0) > 0): ?>, +<?php echo number_format((float)($mySect['bonuses']['breakthrough']) * 100, 1); ?>% breakthrough<?php endif; ?>.</p>
             <p class="text-gray-500 text-xs mb-4">Base NPC support: +<?php echo number_format((float)($mySect['base_bonuses']['cultivation_speed'] ?? 0) * 100, 1); ?>% cultivation, +<?php echo number_format((float)($mySect['base_bonuses']['gold_gain'] ?? 0) * 100, 1); ?>% gold, +<?php echo number_format((float)($mySect['base_bonuses']['breakthrough'] ?? 0) * 100, 1); ?>% breakthrough.</p>
-            <p class="text-gray-500 text-xs mb-4">Rank ladder: Outer Disciple -> Inner Disciple -> Core Disciple -> Elder -> Leader. Promotion requirements: Inner (100 contribution, realm 2), Core (300 contribution, realm 3), Elder (700 contribution, realm 4).</p>
+            <?php
+            require_once dirname(__DIR__) . '/includes/realm_display.php';
+            $promoInnerRealm = realm_display_label_by_id(2);
+            $promoCoreRealm = realm_display_label_by_id(3);
+            $promoElderRealm = realm_display_label_by_id(4);
+            ?>
+            <p class="text-gray-500 text-xs mb-4">Rank ladder: Outer Disciple -> Inner Disciple -> Core Disciple -> Elder -> Leader. Promotion requirements: Inner (100 contribution, <?php echo htmlspecialchars($promoInnerRealm, ENT_QUOTES, 'UTF-8'); ?>), Core (300 contribution, <?php echo htmlspecialchars($promoCoreRealm, ENT_QUOTES, 'UTF-8'); ?>), Elder (700 contribution, <?php echo htmlspecialchars($promoElderRealm, ENT_QUOTES, 'UTF-8'); ?>).</p>
 
             <div class="mb-4 p-3 bg-gray-900/50 rounded-lg border border-amber-500/20">
                 <h3 class="text-sm font-semibold text-amber-300 mb-2">Donate to sect</h3>
@@ -151,7 +157,7 @@ $isLeader = $mySect && (string)($mySect['rank'] ?? $mySect['role'] ?? '') === 'l
                 <li class="flex flex-wrap items-center justify-between gap-2 bg-gray-900/50 rounded-lg px-3 py-2">
                     <span class="text-white"><?php echo htmlspecialchars($m['username'] ?? 'Unknown', ENT_QUOTES, 'UTF-8'); ?></span>
                     <span class="text-gray-400 text-sm"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', (string)($m['rank'] ?? $m['role']))), ENT_QUOTES, 'UTF-8'); ?></span>
-                    <span class="text-cyan-300 text-sm"><?php echo htmlspecialchars((string)($m['realm_name'] ?? 'Unknown Realm'), ENT_QUOTES, 'UTF-8'); ?></span>
+                    <span class="text-cyan-300 text-sm"><?php echo htmlspecialchars(realm_display_label($m['realm_name'] ?? null, (int)($m['realm_id'] ?? 0) ?: null), ENT_QUOTES, 'UTF-8'); ?></span>
                     <span class="text-amber-300 text-sm"><?php echo number_format((int)($m['contribution'] ?? 0)); ?> contrib.</span>
                     <?php if ($isLeader && (int)$m['user_id'] !== $userId): ?>
                         <?php if (!in_array((string)($m['rank'] ?? $m['role']), ['leader', 'elder'], true)): ?>

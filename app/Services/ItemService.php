@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Stats\StatInvalidator;
 use App\Support\PdoDatabase;
 use PDOException;
 
@@ -72,6 +73,8 @@ class ItemService
             $db->prepare("UPDATE equipment_slots SET {$slotColumn} = ? WHERE user_id = ?")->execute([$inventoryId, $userId]);
             $db->prepare("UPDATE inventory SET is_equipped = 1 WHERE id = ?")->execute([$inventoryId]);
             $db->commit();
+            $this->invalidatePlayerStats($userId, 'equipment');
+
             return ['success' => true, 'message' => 'Item equipped.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) $db->rollBack();
@@ -103,12 +106,23 @@ class ItemService
             $db->prepare("UPDATE equipment_slots SET {$column} = NULL WHERE user_id = ?")->execute([$userId]);
             $db->prepare("UPDATE inventory SET is_equipped = 0 WHERE id = ?")->execute([$invId]);
             $db->commit();
+            $this->invalidatePlayerStats($userId, 'equipment');
+
             return ['success' => true, 'message' => 'Item unequipped.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) $db->rollBack();
             error_log("ItemService::unequipItem " . $e->getMessage());
             return ['success' => false, 'message' => 'Database error.'];
         }
+    }
+
+    private function invalidatePlayerStats(int $userId, string $reason): void
+    {
+        if (! function_exists('app') || ! app()->bound(StatInvalidator::class)) {
+            return;
+        }
+
+        app(StatInvalidator::class)->invalidate($userId, $reason);
     }
 
     /**

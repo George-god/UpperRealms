@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/bootstrap.php';
 require_once dirname(__DIR__) . '/core/SessionHelper.php';
 require_once dirname(__DIR__) . '/services/ExplorationService.php';
+require_once dirname(__DIR__) . '/includes/realm_display.php';
 
 use Game\Helper\SessionHelper;
 use Game\Service\ExplorationService;
@@ -17,9 +18,27 @@ $mapData = $service->getRegionsForUser($userId);
 $regions = $mapData['regions'] ?? [];
 $currentLocation = $mapData['current_location'] ?? null;
 $cooldownRemaining = (int)($mapData['cooldown_remaining'] ?? 0);
+$cooldownKind = (string)($mapData['explore_cooldown_kind'] ?? 'none');
 $exploreBurstUsed = (int)($mapData['explore_burst_used'] ?? 0);
 $exploreBurstMax = (int)($mapData['explore_burst_max'] ?? 10);
 $exploreInLongRest = !empty($mapData['explore_in_long_rest']);
+$cooldownLabel = match ($cooldownKind) {
+    'long_rest' => 'Long rest',
+    'interval' => 'Breath interval',
+    default => 'Next explore',
+};
+$formatExploreCooldown = static function (int $seconds): string {
+    $s = max(0, $seconds);
+    if ($s >= 3600) {
+        return (string) (int) ceil($s / 3600).'h';
+    }
+    if ($s >= 120) {
+        return (string) (int) ceil($s / 60).'m';
+    }
+
+    return $s.'s';
+};
+$cooldownDisplay = $cooldownRemaining > 0 ? $formatExploreCooldown($cooldownRemaining) : 'Ready';
 
 $regionCount = count($regions);
 $mapNodes = [];
@@ -44,7 +63,7 @@ foreach ($regions as $region) {
         'resource_type' => (string)($region['resource_type'] ?? ''),
         'exploration_encounters' => (string)($region['exploration_encounters'] ?? ''),
         'hidden_dungeon_chance' => (float)($region['hidden_dungeon_chance'] ?? 0),
-        'min_realm_name' => (string)($region['min_realm_name'] ?? ''),
+        'min_realm_name' => realm_display_label($region['min_realm_name'] ?? null, (int)($region['min_realm_id'] ?? 0) ?: null),
         'is_current' => !empty($region['is_current']),
     ];
 }
@@ -141,12 +160,12 @@ foreach ($regions as $region) {
                         <span id="explore-long-rest-line" class="<?php echo $exploreInLongRest ? 'text-amber-200/95' : 'hidden'; ?>">Long rest active. </span>
                         Burst progress:
                         <span id="explore-burst-text" class="font-medium text-cyan-300"><?php echo (int)$exploreBurstUsed; ?> / <?php echo (int)$exploreBurstMax; ?></span>
-                        <span id="explore-burst-hint" class="text-slate-500"><?php echo $exploreInLongRest ? ' (applies to the next burst after cooldown)' : ' (explores before mandatory long rest)'; ?></span>
+                        <span id="explore-burst-hint" class="text-slate-500"><?php echo $exploreInLongRest ? ' (mandatory rest after completing a full burst)' : ' (explores before mandatory long rest)'; ?></span>
                     </p>
                 </div>
                 <div class="text-sm text-slate-400">
-                    Next explore:
-                    <span id="explore-cooldown" class="font-semibold text-white"><?php echo $cooldownRemaining > 0 ? $cooldownRemaining . 's' : 'Ready'; ?></span>
+                    <span id="explore-cooldown-label"><?php echo htmlspecialchars($cooldownLabel, ENT_QUOTES, 'UTF-8'); ?></span>:
+                    <span id="explore-cooldown" class="font-semibold <?php echo $cooldownKind === 'long_rest' ? 'text-amber-200' : 'text-white'; ?>"><?php echo htmlspecialchars($cooldownDisplay, ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
             </div>
         </div>
@@ -362,10 +381,12 @@ foreach ($regions as $region) {
         var messageEl = document.getElementById('explore-message');
         var resultEl = document.getElementById('explore-result');
         var cooldownEl = document.getElementById('explore-cooldown');
+        var cooldownLabelEl = document.getElementById('explore-cooldown-label');
         var burstTextEl = document.getElementById('explore-burst-text');
         var longRestLineEl = document.getElementById('explore-long-rest-line');
         var burstHintEl = document.getElementById('explore-burst-hint');
         var cooldownRemaining = <?php echo $cooldownRemaining; ?>;
+        var cooldownKind = <?php echo json_encode($cooldownKind, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
         var cooldownInterval = null;
         var selectedRegionId = null;
 
@@ -383,8 +404,25 @@ foreach ($regions as $region) {
             messageEl.classList.remove('hidden');
         }
 
-        function setCooldown(seconds) {
+        function setCooldownKind(kind) {
+            cooldownKind = kind || 'none';
+            if (!cooldownLabelEl) return;
+            if (kind === 'long_rest') {
+                cooldownLabelEl.textContent = 'Long rest';
+            } else if (kind === 'interval') {
+                cooldownLabelEl.textContent = 'Breath interval';
+            } else {
+                cooldownLabelEl.textContent = 'Next explore';
+            }
+            if (cooldownEl) {
+                cooldownEl.classList.toggle('text-amber-200', kind === 'long_rest');
+                cooldownEl.classList.toggle('text-white', kind !== 'long_rest');
+            }
+        }
+
+        function setCooldown(seconds, kind) {
             cooldownRemaining = Math.max(0, seconds || 0);
+            if (kind) setCooldownKind(kind);
             if (cooldownEl) {
                 cooldownEl.textContent = cooldownRemaining > 0 ? formatCooldown(cooldownRemaining) : 'Ready';
             }
@@ -401,23 +439,30 @@ foreach ($regions as $region) {
             if (u == null || m == null) return;
             burstTextEl.textContent = u + ' / ' + m;
             var lr = payload.explore_in_long_rest === true;
+            if (payload.explore_cooldown_kind) {
+                setCooldownKind(payload.explore_cooldown_kind);
+            } else if (lr) {
+                setCooldownKind('long_rest');
+            } else if (cooldownRemaining > 0 && cooldownRemaining <= 120) {
+                setCooldownKind('interval');
+            }
             if (longRestLineEl) {
                 longRestLineEl.classList.toggle('hidden', !lr);
                 if (lr) longRestLineEl.classList.add('text-amber-200/95');
             }
             if (burstHintEl) {
                 burstHintEl.textContent = lr
-                    ? ' (applies to the next burst after cooldown)'
+                    ? ' (mandatory rest after completing a full burst)'
                     : ' (explores before mandatory long rest)';
             }
         }
 
-        function startCooldown(seconds) {
+        function startCooldown(seconds, kind) {
             if (cooldownInterval) {
                 clearInterval(cooldownInterval);
                 cooldownInterval = null;
             }
-            setCooldown(seconds);
+            setCooldown(seconds, kind);
             if (seconds <= 0) return;
             cooldownInterval = window.setInterval(function() {
                 cooldownRemaining -= 1;
@@ -483,7 +528,7 @@ foreach ($regions as $region) {
                 html += '<p class="text-slate-300 mb-2">' + data.dungeon.name + ' | Difficulty ' + data.dungeon.difficulty + '</p>';
                 html += '<p class="text-slate-400 mb-3">Boss: ' + data.dungeon.boss_name + '</p>';
                 if (data.dungeon.locked) {
-                    html += '<p class="text-amber-300 text-sm">Requires ' + (data.dungeon.min_realm_name || 'Qi Refining') + ' to enter.</p>';
+                    html += '<p class="text-amber-300 text-sm">Requires ' + (data.dungeon.min_realm_name || 'Realm') + ' to enter.</p>';
                 } else {
                     html += '<a href="/game/dungeon/' + data.dungeon.id + '" class="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold">Enter Dungeon</a>';
                 }
@@ -591,13 +636,13 @@ foreach ($regions as $region) {
                         if (data.message) payload.message = data.message;
                         renderResult(payload);
                         setBurstFromPayload(payload);
-                        startCooldown(parseInt(data.data.cooldown_remaining || 0, 10));
+                        startCooldown(parseInt(data.data.cooldown_remaining || 0, 10), data.data.explore_cooldown_kind || null);
                     } else {
                         showMessage(data.message || 'Exploration failed.', true);
                         if (data.data && (data.data.cooldown_remaining != null || data.data.explore_burst_used != null)) {
                             setBurstFromPayload(data.data);
                             if (data.data.cooldown_remaining != null) {
-                                startCooldown(parseInt(data.data.cooldown_remaining, 10));
+                                startCooldown(parseInt(data.data.cooldown_remaining, 10), data.data.explore_cooldown_kind || null);
                             } else {
                                 btn.disabled = false;
                             }
@@ -612,7 +657,8 @@ foreach ($regions as $region) {
                 });
         });
 
-        startCooldown(cooldownRemaining);
+        setCooldownKind(cooldownKind);
+        startCooldown(cooldownRemaining, cooldownKind);
     })();
     </script>
 </body>

@@ -45,6 +45,16 @@ return new class extends Migration
             $table->unsignedBigInteger('max_chi')->default(100);
             $table->unsignedInteger('attack')->default(10);
             $table->unsignedInteger('defense')->default(10);
+            $table->unsignedSmallInteger('strength')->default(5);
+            $table->unsignedSmallInteger('agility')->default(5);
+            $table->unsignedSmallInteger('vitality')->default(5);
+            $table->unsignedSmallInteger('spirit')->default(5);
+            $table->unsignedSmallInteger('soul')->default(5);
+            $table->unsignedSmallInteger('willpower')->default(5);
+            $table->unsignedSmallInteger('attribute_points')->default(0);
+            $table->string('stat_specialization', 32)->nullable();
+            $table->string('body_type', 48)->nullable();
+            $table->unsignedSmallInteger('attribute_respec_count')->default(0);
             $table->unsignedInteger('wins')->default(0);
             $table->unsignedInteger('losses')->default(0);
             $table->decimal('rating', 8, 2)->default(1000);

@@ -92,7 +92,7 @@ $slotLabels = [
                     </tbody>
                 </table>
             </div>
-            <p class="text-xs text-gray-500 mt-3">Realm multiplier on core stats: <strong class="text-white">×<?php echo htmlspecialchars(number_format((float)$breakdown['realm_multiplier'], 4, '.', ''), ENT_QUOTES, 'UTF-8'); ?></strong></p>
+            <p class="text-xs text-gray-500 mt-3"><?php echo htmlspecialchars(!empty($breakdown['realm_name']) ? 'Realm — '.$breakdown['realm_name'] : 'Realm', ENT_QUOTES, 'UTF-8'); ?> multiplier on core stats: <strong class="text-white">×<?php echo htmlspecialchars(number_format((float)$breakdown['realm_multiplier'], 4, '.', ''), ENT_QUOTES, 'UTF-8'); ?></strong></p>
         </div>
 
         <!-- Equipped items -->

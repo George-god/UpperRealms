@@ -66,3 +66,8 @@ if (! function_exists('legacy_session_start')) {
         }
     }
 }
+
+$gameStatInvalidate = dirname(__DIR__, 2).'/app/Support/Gameplay/game_stat_invalidate.php';
+if (is_file($gameStatInvalidate)) {
+    require_once $gameStatInvalidate;
+}

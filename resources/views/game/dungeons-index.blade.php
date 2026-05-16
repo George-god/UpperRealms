@@ -58,7 +58,7 @@
                         {{ __('Boss:') }} <span class="text-slate-200">{{ $d['boss_name'] ?? '' }}</span>
                     </p>
                     <p class="mb-4 text-sm {{ $locked ? 'text-amber-300' : 'text-slate-500' }}">
-                        {{ __('Requires') }} {{ $d['min_realm_name'] ?? __('Qi Refining') }}
+                        {{ __('Requires') }} {{ \App\Support\RealmDisplay::label($d['min_realm_name'] ?? null, (int) ($d['min_realm_id'] ?? 0) ?: null) }}
                     </p>
                     @if ($activeRun)
                         <p class="mb-4 text-sm text-cyan-300">

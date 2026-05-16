@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/bootstrap.php';
 require_once dirname(__DIR__) . '/core/SessionHelper.php';
 require_once dirname(__DIR__) . '/services/DungeonService.php';
+require_once dirname(__DIR__) . '/includes/realm_display.php';
 
 use Game\Helper\SessionHelper;
 use Game\Service\DungeonService;
@@ -57,7 +58,7 @@ $highlightId = (int)($_GET['highlight'] ?? 0);
                         <?php endif; ?>
                     </div>
                     <p class="text-sm text-gray-400 mb-2">Boss: <?php echo htmlspecialchars($dungeon['boss_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
-                    <p class="text-sm <?php echo $locked ? 'text-amber-300' : 'text-gray-500'; ?> mb-4">Requires <?php echo htmlspecialchars($dungeon['min_realm_name'] ?? 'Qi Refining', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="text-sm <?php echo $locked ? 'text-amber-300' : 'text-gray-500'; ?> mb-4">Requires <?php echo htmlspecialchars(realm_display_label($dungeon['min_realm_name'] ?? null, (int)($dungeon['min_realm_id'] ?? 0) ?: null), ENT_QUOTES, 'UTF-8'); ?></p>
                     <?php if ($activeRun): ?>
                         <p class="text-sm text-cyan-300 mb-4">Progress: Stage <?php echo (int)$activeRun['progress'] + 1; ?> / 3</p>
                     <?php endif; ?>

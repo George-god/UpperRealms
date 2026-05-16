@@ -65,6 +65,68 @@ class CultivationManualService
         }
     }
 
+    /**
+     * @return array{tables_available: bool, owned: list<array<string, mixed>>, borrowed: list<array<string, mixed>>, total: int}
+     */
+    public function getManualsForInventory(int $userId): array
+    {
+        $empty = [
+            'tables_available' => false,
+            'owned' => [],
+            'borrowed' => [],
+            'total' => 0,
+        ];
+        try {
+            $db = PdoDatabase::connection();
+            if (! $this->manualTablesExist($db)) {
+                return $empty;
+            }
+            $daoProfile = $this->getDaoProfile($userId, $db);
+            $owned = $this->getOwnedManuals($userId, $db);
+            $borrowed = $this->getBorrowedManuals($userId, $db);
+            $applicableIds = [];
+            foreach ($this->getApplicableManuals($userId, $db, $daoProfile) as $manual) {
+                $applicableIds[(int) ($manual['id'] ?? 0)] = true;
+            }
+            $decorate = static function (array $manual, string $holder) use ($applicableIds): array {
+                $id = (int) ($manual['id'] ?? 0);
+                $manual['holder'] = $holder;
+                $manual['dao_applicable'] = isset($applicableIds[$id]);
+                $manual['dao_element_label'] = ! empty($manual['dao_element'])
+                    ? ucfirst((string) $manual['dao_element'])
+                    : 'Any element';
+                $manual['dao_alignment_label'] = ucfirst((string) ($manual['dao_alignment'] ?? 'universal'));
+
+                return $manual;
+            };
+            $owned = array_map(static fn (array $m): array => $decorate($m, 'owned'), $owned);
+            $borrowed = array_map(static fn (array $m): array => $decorate($m, 'borrowed'), $borrowed);
+
+            return [
+                'tables_available' => true,
+                'owned' => $owned,
+                'borrowed' => $borrowed,
+                'total' => count($owned) + count($borrowed),
+            ];
+        } catch (PDOException $e) {
+            error_log('CultivationManualService::getManualsForInventory '.$e->getMessage());
+
+            return $empty;
+        }
+    }
+
+    public function manualTablesExist(?PDO $db = null): bool
+    {
+        try {
+            $db = $db ?? PdoDatabase::connection();
+            $db->query('SELECT 1 FROM user_cultivation_manuals LIMIT 1');
+
+            return true;
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+
     public function getSectLibraryPageData(int $userId): array
     {
         try {
@@ -191,7 +253,11 @@ class CultivationManualService
                 ->execute([(int)$recipe['required_gold'], (int)$recipe['required_spirit_stones'], $userId]);
 
             $manualId = $this->createCustomManualDefinition($db, $userId, $user, $recipe);
-            $this->grantManualOwnership($db, $userId, $manualId, 'crafted');
+            if (! $this->grantManualOwnership($db, $userId, $manualId, 'crafted')) {
+                $db->rollBack();
+
+                return ['success' => false, 'message' => 'Manual could not be saved. Run database migrations and try again.'];
+            }
             $db->commit();
 
             return ['success' => true, 'message' => 'Custom cultivation manual crafted successfully.'];
@@ -339,7 +405,10 @@ class CultivationManualService
             return null;
         }
 
-        $this->grantManualOwnership($db, $userId, (int)$manual['id'], 'dungeon');
+        if (! $this->grantManualOwnership($db, $userId, (int) $manual['id'], 'dungeon')) {
+            return null;
+        }
+
         return $manual;
     }
 
@@ -356,7 +425,10 @@ class CultivationManualService
             return null;
         }
 
-        $this->grantManualOwnership($db, $userId, (int)$manual['id'], 'world_boss');
+        if (! $this->grantManualOwnership($db, $userId, (int) $manual['id'], 'world_boss')) {
+            return null;
+        }
+
         return $manual;
     }
 
@@ -377,7 +449,10 @@ class CultivationManualService
             if ($manual === null) {
                 return null;
             }
-            $this->grantManualOwnership($db, $userId, (int)$manual['id'], 'ancient_ruins');
+            if (! $this->grantManualOwnership($db, $userId, (int) $manual['id'], 'ancient_ruins')) {
+                return null;
+            }
+
             return $manual;
         } catch (PDOException $e) {
             error_log('CultivationManualService::awardAncientRuinsManual ' . $e->getMessage());
@@ -540,10 +615,21 @@ class CultivationManualService
         return $filtered[array_rand($filtered)] ?? null;
     }
 
-    private function grantManualOwnership(PDO $db, int $userId, int $manualId, string $source): void
+    private function grantManualOwnership(PDO $db, int $userId, int $manualId, string $source): bool
     {
-        $db->prepare('INSERT INTO user_cultivation_manuals (user_id, manual_id, acquired_from, is_active) VALUES (?, ?, ?, 1)')
-            ->execute([$userId, $manualId, $source]);
+        if (! $this->manualTablesExist($db)) {
+            error_log('CultivationManualService::grantManualOwnership manual tables missing');
+
+            return false;
+        }
+        try {
+            $db->prepare('INSERT INTO user_cultivation_manuals (user_id, manual_id, acquired_from, is_active) VALUES (?, ?, ?, 1)')
+                ->execute([$userId, $manualId, $source]);
+        } catch (PDOException $e) {
+            error_log('CultivationManualService::grantManualOwnership '.$e->getMessage());
+
+            return false;
+        }
         $stmt = $db->prepare('SELECT name, rarity FROM cultivation_manuals WHERE id = ? LIMIT 1');
         $stmt->execute([$manualId]);
         $manual = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['name' => 'Unknown Manual', 'rarity' => 'unknown'];
@@ -551,14 +637,16 @@ class CultivationManualService
             'manual_acquisition',
             $userId,
             $manualId,
-            'You obtained the cultivation manual ' . (string)$manual['name'] . '.',
+            'You obtained the cultivation manual '.(string) $manual['name'].'.',
             [
                 'source' => $source,
-                'manual_name' => (string)$manual['name'],
-                'rarity' => (string)$manual['rarity'],
+                'manual_name' => (string) $manual['name'],
+                'rarity' => (string) $manual['rarity'],
             ],
             $db
         );
+
+        return true;
     }
 
     private function createCustomManualDefinition(PDO $db, int $userId, array $user, array $recipe): int

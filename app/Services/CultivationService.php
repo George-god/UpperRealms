@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Attributes\AttributeCalculator;
+use App\Services\Attributes\AttributeProgressionService;
 use App\Support\PdoDatabase;
 use PDOException;
 
@@ -56,6 +58,11 @@ class CultivationService
             $caveBonuses = (new CaveService())->getEffectiveBonuses($userId);
             $bloodBonuses = (new BloodlineService())->getPassiveBonuses($userId);
             $cultMult = 1.0 + (float)($caveBonuses['cultivation'] ?? 0.0) + (float)($bloodBonuses['cultivation_pct'] ?? 0.0);
+            $attrRow = $this->fetchAttributeRow($db, $userId);
+            if ($attrRow !== null) {
+                $derived = (new AttributeCalculator)->compute($attrRow);
+                $cultMult += (float) ($derived['cultivation_speed_pct'] ?? 0.0);
+            }
             $chiGain = (int)max(1, floor($chiGain * $cultMult));
             $newChi = min(max(0, $currentChi) + $chiGain, max(0, $maxChi));
             $newChi = max(0, $newChi);
@@ -84,6 +91,7 @@ class CultivationService
                 'level_up' => $levelUpResult['leveled_up'],
                 'new_level' => $levelUpResult['new_level'],
                 'new_max_chi' => $levelUpResult['new_max_chi'],
+                'attribute_stat_gains' => $levelUpResult['attribute_stat_gains'] ?? [],
                 'cooldown_remaining' => self::COOLDOWN_SECONDS,
                 'realm_level_cap_reached' => !empty($levelUpResult['blocked_by_realm_cap']),
             ];
@@ -172,12 +180,15 @@ class CultivationService
             $userId
         ]);
 
+        $attributeStatGains = (new AttributeProgressionService)->applyMinorLevelGrowth($db, $userId, $newLevel);
+
         return [
             'leveled_up' => true,
             'new_level' => $newLevel,
             'new_max_chi' => $newMaxChi,
             'chi_after' => $chiToKeep,
-            'max_chi' => $newMaxChi
+            'max_chi' => $newMaxChi,
+            'attribute_stat_gains' => $attributeStatGains,
         ];
     }
 
@@ -187,6 +198,25 @@ class CultivationService
         $stmt->execute([$userId]);
         $row = $stmt->fetch();
         return $row ?: null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchAttributeRow(\PDO $db, int $userId): ?array
+    {
+        try {
+            $stmt = $db->prepare('
+                SELECT strength, agility, vitality, spirit, soul, willpower, stat_specialization, body_type
+                FROM users WHERE id = ? LIMIT 1
+            ');
+            $stmt->execute([$userId]);
+            $row = $stmt->fetch();
+
+            return $row ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
     }
 
     private function fail(string $error, int $cooldownRemaining = 0): array

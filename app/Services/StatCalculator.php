@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Attributes\AttributeCalculator;
+use App\Services\Stats\StatBonusComposer;
+use App\Support\GameDebug;
+use App\Support\RealmDisplay;
 use App\Support\PdoDatabase;
 use PDOException;
 
@@ -16,6 +20,11 @@ class StatCalculator
 
     /** @var array<int, float> Realm multipliers are global; safe to cache per process. */
     private static array $realmMultiplierById = [];
+
+    /** @var array<int, string> */
+    private static array $realmNameById = [];
+
+    private ?AttributeCalculator $attributeCalculator = null;
 
     /**
      * Calculate final combat stats for a user.
@@ -36,21 +45,34 @@ class StatCalculator
         }
 
         $afterEquipment = $this->applyEquippedItemBonuses($baseStats, $userId);
-        $afterDaoPath = $this->applyDaoBonuses($this->applyRealmTierMultiplier($afterEquipment));
-        $afterBloodline = $this->applyBloodlineBonuses($afterDaoPath, $userId);
-        $afterArtifacts = $this->applyArtifactBonuses($afterBloodline, $userId);
-        $afterTitles = $this->applyTitleBonuses($afterArtifacts, $userId);
-        $finalStats = $this->applyActiveScrollEffect($this->applyCultivationManualBonuses($afterTitles, $userId));
+        $afterRealm = $this->applyRealmTierMultiplier($afterEquipment);
+
+        if (config('stats.use_additive_percent_pool', true)) {
+            $afterPooled = $this->applyPooledPercentBonuses($afterRealm, $userId);
+            $finalStats = $this->attributes()->applyToFinalStats($baseStats, $afterPooled);
+        } else {
+            $afterDaoPath = $this->applyDaoBonuses($afterRealm);
+            $afterBloodline = $this->applyBloodlineBonuses($afterDaoPath, $userId);
+            $afterArtifacts = $this->applyArtifactBonuses($afterBloodline, $userId);
+            $afterTitles = $this->applyTitleBonuses($afterArtifacts, $userId);
+            $finalStats = $this->applyActiveScrollEffect($this->applyCultivationManualBonuses($afterTitles, $userId));
+            $finalStats = $this->attributes()->applyToFinalStats($baseStats, $finalStats);
+        }
+
         $equipmentBonus = $this->getEquippedItemBonusesSummary($userId);
 
-        $this->finalStatsCache[$userId] = [
+        $payload = [
             'user_id' => $userId,
             'base' => $baseStats,
             'final' => $finalStats,
             'modifiers' => [
-                'equipment_bonus' => $equipmentBonus
-            ]
+                'equipment_bonus' => $equipmentBonus,
+            ],
         ];
+
+        GameDebug::logStatCalculation($userId, $payload);
+
+        $this->finalStatsCache[$userId] = $payload;
 
         return $this->finalStatsCache[$userId];
     }
@@ -70,6 +92,8 @@ class StatCalculator
             $db = PdoDatabase::connection();
             $stmt = $db->prepare("
                 SELECT u.id, u.realm_id, u.level, u.chi, u.max_chi, u.attack, u.defense, u.active_scroll_type,
+                       u.strength, u.agility, u.vitality, u.spirit, u.soul, u.willpower,
+                       u.attribute_points, u.stat_specialization, u.body_type,
                        d.path_key AS dao_path_key, d.name AS dao_path_name, d.alignment AS dao_alignment,
                        d.element AS dao_element, d.attack_bonus_pct, d.defense_bonus_pct, d.max_chi_bonus_pct,
                        d.dodge_bonus_pct, d.bonus_damage_pct, d.heal_on_hit_pct, d.reflect_damage_pct,
@@ -105,11 +129,25 @@ class StatCalculator
                 'dao_reflect_damage_pct' => (float)($user['reflect_damage_pct'] ?? 0.0),
                 'dao_self_damage_pct' => (float)($user['self_damage_pct'] ?? 0.0),
                 'dao_favored_tribulation' => !empty($user['favored_tribulation']) ? (string)$user['favored_tribulation'] : null,
+                'strength' => (int)($user['strength'] ?? 5),
+                'agility' => (int)($user['agility'] ?? 5),
+                'vitality' => (int)($user['vitality'] ?? 5),
+                'spirit' => (int)($user['spirit'] ?? 5),
+                'soul' => (int)($user['soul'] ?? 5),
+                'willpower' => (int)($user['willpower'] ?? 5),
+                'attribute_points' => (int)($user['attribute_points'] ?? 0),
+                'stat_specialization' => $user['stat_specialization'] ?? null,
+                'body_type' => $user['body_type'] ?? null,
             ];
         } catch (PDOException $e) {
             error_log("StatCalculator::getBaseStats " . $e->getMessage());
             return null;
         }
+    }
+
+    private function attributes(): AttributeCalculator
+    {
+        return $this->attributeCalculator ??= new AttributeCalculator;
     }
 
     /**
@@ -343,6 +381,99 @@ class StatCalculator
     }
 
     /**
+     * Sum percent bonuses from dao, bloodline, artifacts, titles, manuals, scroll — apply once.
+     *
+     * @param  array<string, mixed>  $stats
+     * @return array<string, mixed>
+     */
+    private function applyPooledPercentBonuses(array $stats, int $userId): array
+    {
+        $pool = [
+            'attack_pct' => (float) ($stats['dao_attack_bonus_pct'] ?? 0.0),
+            'defense_pct' => (float) ($stats['dao_defense_bonus_pct'] ?? 0.0),
+            'max_chi_pct' => (float) ($stats['dao_max_chi_bonus_pct'] ?? 0.0),
+        ];
+
+        $bl = (new BloodlineService)->getPassiveBonuses($userId);
+        $pool['attack_pct'] += (float) ($bl['attack_pct'] ?? 0.0);
+        $pool['defense_pct'] += (float) ($bl['defense_pct'] ?? 0.0);
+        $pool['max_chi_pct'] += (float) ($bl['max_chi_pct'] ?? 0.0);
+
+        $art = (new ArtifactService)->getAggregatedCombatModifiers($userId);
+        $pool['attack_pct'] += (float) ($art['passive_attack_pct'] ?? 0.0);
+        $pool['defense_pct'] += (float) ($art['passive_defense_pct'] ?? 0.0);
+        $pool['max_chi_pct'] += (float) ($art['passive_max_chi_pct'] ?? 0.0);
+
+        $title = (new TitleService)->getEquippedBonuses($userId);
+        $pool['attack_pct'] += (float) ($title['attack_pct'] ?? 0.0);
+        $pool['defense_pct'] += (float) ($title['defense_pct'] ?? 0.0);
+        $pool['max_chi_pct'] += (float) ($title['max_chi_pct'] ?? 0.0);
+
+        $manual = (new CultivationManualService)->getActiveEffectsForUser($userId);
+        $pool['attack_pct'] += (float) ($manual['passive_attack_pct'] ?? 0.0);
+        $pool['defense_pct'] += (float) ($manual['passive_defense_pct'] ?? 0.0);
+        $pool['max_chi_pct'] += (float) ($manual['passive_max_chi_pct'] ?? 0.0);
+
+        $scroll = $stats['active_scroll_type'] ?? null;
+        if ($scroll === 'minor_attack') {
+            $pool['attack_pct'] += 0.08;
+        } elseif ($scroll === 'minor_defense') {
+            $pool['defense_pct'] += 0.08;
+        } elseif ($scroll === 'vitality') {
+            $pool['max_chi_pct'] += 0.10;
+        }
+
+        $composer = new StatBonusComposer;
+        $stats = $composer->applyPercentPool($stats, $pool);
+
+        $stats = $this->attachBloodlineCombatModifiers($stats, $userId);
+        $stats = $this->attachArtifactCombatModifiers($stats, $userId);
+        $stats['manual_effects'] = $manual;
+        $stats['dao_dodge_bonus'] = (float) ($stats['dao_dodge_bonus'] ?? 0.0) + (float) ($manual['passive_dodge_pct'] ?? 0.0);
+
+        return $this->ensureDaoMetaOnStats($stats);
+    }
+
+    /**
+     * @param  array<string, mixed>  $stats
+     * @return array<string, mixed>
+     */
+    private function attachBloodlineCombatModifiers(array $stats, int $userId): array
+    {
+        $combat = (new BloodlineService)->getScaledAbilityCombat($userId);
+        $red = (float) ($combat['damage_taken_reduction_pct'] ?? 0.0);
+
+        return array_merge($stats, [
+            'bloodline_outgoing_damage_pct' => (float) ($combat['damage_out_pct'] ?? 0.0),
+            'bloodline_damage_taken_mult' => max(0.5, 1.0 - min(0.65, $red)),
+            'bloodline_crit_chance_bonus' => (float) ($combat['crit_chance_bonus'] ?? 0.0),
+            'bloodline_dodge_bonus' => (float) ($combat['dodge_bonus'] ?? 0.0),
+            'bloodline_counter_bonus' => (float) ($combat['counter_bonus'] ?? 0.0),
+            'bloodline_lifesteal_bonus_pct' => (float) ($combat['lifesteal_bonus_pct'] ?? 0.0),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $stats
+     * @return array<string, mixed>
+     */
+    private function attachArtifactCombatModifiers(array $stats, int $userId): array
+    {
+        $a = (new ArtifactService)->getAggregatedCombatModifiers($userId);
+        $artRed = (float) ($a['taken_reduction_pct'] ?? 0.0);
+        $artTaken = max(0.5, 1.0 - min(0.65, $artRed));
+
+        return array_merge($stats, [
+            'artifact_outgoing_damage_pct' => (float) ($a['damage_out_pct'] ?? 0.0),
+            'artifact_damage_taken_mult' => $artTaken,
+            'artifact_crit_chance_bonus' => (float) ($a['crit_chance_bonus'] ?? 0.0),
+            'artifact_dodge_bonus' => (float) ($a['dodge_bonus'] ?? 0.0),
+            'artifact_counter_bonus' => (float) ($a['counter_bonus'] ?? 0.0),
+            'artifact_lifesteal_bonus_pct' => (float) ($a['lifesteal_bonus_pct'] ?? 0.0),
+        ]);
+    }
+
+    /**
      * Active bloodline: percentage bonuses to attack, defense, max chi (after title).
      *
      * @param array<string, mixed> $stats
@@ -468,6 +599,26 @@ class StatCalculator
     /**
      * Single realm multiplier (controlled exponential scaling). Fallback 1.0 if column missing.
      */
+    private function getRealmName(int $realmId): string
+    {
+        if (isset(self::$realmNameById[$realmId])) {
+            return self::$realmNameById[$realmId];
+        }
+
+        try {
+            $db = PdoDatabase::connection();
+            $stmt = $db->prepare('SELECT name FROM realms WHERE id = ? LIMIT 1');
+            $stmt->execute([$realmId]);
+            $name = $stmt->fetchColumn();
+            self::$realmNameById[$realmId] = is_string($name) ? $name : '';
+        } catch (\Throwable $e) {
+            error_log('StatCalculator::getRealmName '.$e->getMessage());
+            self::$realmNameById[$realmId] = '';
+        }
+
+        return self::$realmNameById[$realmId];
+    }
+
     private function getRealmMultiplier(int $realmId): float
     {
         if (isset(self::$realmMultiplierById[$realmId])) {
@@ -478,6 +629,9 @@ class StatCalculator
             $stmt = $db->prepare("SELECT * FROM realms WHERE id = ? LIMIT 1");
             $stmt->execute([$realmId]);
             $row = $stmt->fetch();
+            if ($row && isset($row['name']) && is_string($row['name'])) {
+                self::$realmNameById[$realmId] = $row['name'];
+            }
             $m = ($row && isset($row['multiplier'])) ? (float)$row['multiplier'] : 1.0;
             self::$realmMultiplierById[$realmId] = $m;
             return $m;
@@ -537,6 +691,7 @@ class StatCalculator
 
         $realmId = (int)($base['realm_id'] ?? 1);
         $realmMult = $this->getRealmMultiplier($realmId);
+        $realmLabel = RealmDisplay::label($this->getRealmName($realmId), $realmId);
 
         $afterEquipment = $this->applyEquippedItemBonuses($base, $userId);
         $afterDaoPath = $this->applyDaoBonuses($this->applyRealmTierMultiplier($afterEquipment));
@@ -544,13 +699,15 @@ class StatCalculator
         $afterArtifacts = $this->applyArtifactBonuses($afterBloodline, $userId);
         $afterTitle = $this->applyTitleBonuses($afterArtifacts, $userId);
         $afterManuals = $this->applyCultivationManualBonuses($afterTitle, $userId);
-        $final = $this->applyActiveScrollEffect($afterManuals);
+        $afterScroll = $this->applyActiveScrollEffect($afterManuals);
+        $final = $this->attributes()->applyToFinalStats($base, $afterScroll);
 
         $equipmentFlat = $this->getEquippedItemBonusesSummary($userId);
         $scrollType = $base['active_scroll_type'] ?? null;
 
         return [
             'realm_id' => $realmId,
+            'realm_name' => $this->getRealmName($realmId),
             'realm_multiplier' => $realmMult,
             'active_scroll_type' => $scrollType,
             'active_scroll_label' => $this->describeActiveScroll((string)($scrollType ?? '')),
@@ -570,8 +727,8 @@ class StatCalculator
                 ],
                 [
                     'key' => 'dao_path',
-                    'label' => 'After realm tier ×' . rtrim(rtrim((string)round($realmMult, 4), '0'), '.') . ' + Dao Path',
-                    'note' => 'Realm multiplier and Dao percentage modifiers.',
+                    'label' => 'After '.$realmLabel.' tier ×' . rtrim(rtrim((string)round($realmMult, 4), '0'), '.') . ' + Dao Path',
+                    'note' => $realmLabel.' multiplier and Dao percentage modifiers.',
                     'stats' => $this->snapshotCore($afterDaoPath),
                 ],
                 [
@@ -602,8 +759,22 @@ class StatCalculator
                     'key' => 'scroll',
                     'label' => 'After active rune scroll (buffs)',
                     'note' => $scrollType ? $this->describeActiveScroll((string)$scrollType) : 'No combat scroll active.',
+                    'stats' => $this->snapshotCore($afterScroll),
+                ],
+                [
+                    'key' => 'attributes',
+                    'label' => 'After primary attributes',
+                    'note' => 'Strength, Agility, Vitality, Spirit, Soul, and Willpower — specialization, body, and synergies.',
                     'stats' => $this->snapshotCore($final),
                 ],
+            ],
+            'primaries' => [
+                'strength' => (int) ($base['strength'] ?? 5),
+                'agility' => (int) ($base['agility'] ?? 5),
+                'vitality' => (int) ($base['vitality'] ?? 5),
+                'spirit' => (int) ($base['spirit'] ?? 5),
+                'soul' => (int) ($base['soul'] ?? 5),
+                'willpower' => (int) ($base['willpower'] ?? 5),
             ],
             'dao_path' => [
                 'name' => (string)($final['dao_path_name'] ?? ''),

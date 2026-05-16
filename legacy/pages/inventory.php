@@ -4,7 +4,9 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/bootstrap.php';
 require_once dirname(__DIR__) . '/services/ItemService.php';
 require_once dirname(__DIR__) . '/services/StatCalculator.php';
+require_once dirname(__DIR__) . '/services/CultivationManualService.php';
 
+use Game\Service\CultivationManualService;
 use Game\Service\ItemService;
 use Game\Service\StatCalculator;
 
@@ -17,6 +19,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] === '' || $_SESSION['us
 
 $userId = (int)$_SESSION['user_id'];
 $itemService = new ItemService();
+$manualService = new CultivationManualService();
 
 $message = null;
 $error = null;
@@ -52,6 +55,21 @@ if ($equipment['armor_id']) $inventoryIdToSlot[$equipment['armor_id']] = 'armor'
 if ($equipment['accessory_1_id']) $inventoryIdToSlot[$equipment['accessory_1_id']] = 'accessory_1';
 if ($equipment['accessory_2_id']) $inventoryIdToSlot[$equipment['accessory_2_id']] = 'accessory_2';
 
+$manualInventory = $manualService->getManualsForInventory($userId);
+$cultivationManuals = array_merge($manualInventory['owned'] ?? [], $manualInventory['borrowed'] ?? []);
+$manualTablesAvailable = (bool) ($manualInventory['tables_available'] ?? false);
+
+$formatManualSource = static fn(string $source): string => ucwords(str_replace('_', ' ', $source));
+$rarityBadgeClass = static function (string $rarity): string {
+    return match (strtolower($rarity)) {
+        'mythic' => 'bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300',
+        'legendary' => 'bg-amber-500/20 border-amber-500/40 text-amber-300',
+        'epic' => 'bg-violet-500/20 border-violet-500/40 text-violet-300',
+        'rare' => 'bg-blue-500/20 border-blue-500/40 text-blue-300',
+        default => 'bg-gray-500/20 border-gray-500/40 text-gray-300',
+    };
+};
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -71,7 +89,8 @@ if ($equipment['accessory_2_id']) $inventoryIdToSlot[$equipment['accessory_2_id'
                     🎒 Inventory
                 </h1>
             </div>
-            <div class="flex gap-4">
+            <div class="flex gap-4 flex-wrap">
+                <a href="cultivation_manuals.php" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-violet-500/30 text-violet-300 transition-all">Cultivation Manuals</a>
                 <a href="equipment.php" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-violet-500/30 text-violet-300 transition-all">Equipment</a>
             </div>
         </div>
@@ -94,6 +113,49 @@ if ($equipment['accessory_2_id']) $inventoryIdToSlot[$equipment['accessory_2_id'
                 <span>DEF: <strong id="stat-defense"><?php echo (int)$displayStats['defense']; ?></strong></span>
                 <span>Max Chi: <strong id="stat-max-chi"><?php echo (int)$displayStats['max_chi']; ?></strong></span>
             </div>
+        </div>
+
+        <div class="mb-6 bg-gray-800/90 backdrop-blur-lg border border-violet-500/30 rounded-xl p-6">
+            <div class="flex justify-between items-center gap-4 flex-wrap mb-4">
+                <h2 class="text-xl font-semibold text-violet-300">📜 Cultivation Manuals</h2>
+                <a href="cultivation_manuals.php" class="text-sm text-violet-300 hover:text-violet-200 underline">Manage bonuses &amp; crafting →</a>
+            </div>
+            <p class="text-gray-400 text-sm mb-4">Manuals are kept separately from gear and consumables. Passive bonuses apply when your Dao path matches the manual.</p>
+            <?php if (! $manualTablesAvailable): ?>
+                <p class="text-amber-300/90 text-sm">Cultivation manual tables are not set up on this server yet. Ask an admin to run migrations.</p>
+            <?php elseif (empty($cultivationManuals)): ?>
+                <p class="text-gray-400 text-sm">No cultivation manuals yet. Explore ancient ruins, clear dungeons, or defeat world bosses to find them.</p>
+            <?php else: ?>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <?php foreach ($cultivationManuals as $manual): ?>
+                        <?php
+                        $rarity = strtolower((string) ($manual['rarity'] ?? 'common'));
+                        $holder = (string) ($manual['holder'] ?? 'owned');
+                        $isBorrowed = $holder === 'borrowed';
+                        $daoOk = ! empty($manual['dao_applicable']);
+                        ?>
+                        <div class="bg-gray-900/80 border border-violet-500/20 rounded-lg p-4">
+                            <div class="flex items-start justify-between gap-2 flex-wrap">
+                                <div class="font-semibold text-white"><?php echo htmlspecialchars((string) ($manual['name'] ?? 'Manual'), ENT_QUOTES, 'UTF-8'); ?></div>
+                                <span class="px-2 py-0.5 rounded text-xs font-semibold border <?php echo $rarityBadgeClass($rarity); ?>"><?php echo htmlspecialchars(ucfirst($rarity), ENT_QUOTES, 'UTF-8'); ?></span>
+                            </div>
+                            <div class="text-sm text-gray-400 mt-1">Cultivation manual</div>
+                            <?php if ($isBorrowed): ?>
+                                <div class="text-xs text-cyan-300 mt-1">Borrowed from <?php echo htmlspecialchars((string) ($manual['sect_name'] ?? 'sect'), ENT_QUOTES, 'UTF-8'); ?></div>
+                            <?php else: ?>
+                                <div class="text-xs text-gray-500 mt-1">From <?php echo htmlspecialchars($formatManualSource((string) ($manual['acquired_from'] ?? 'unknown')), ENT_QUOTES, 'UTF-8'); ?></div>
+                            <?php endif; ?>
+                            <div class="text-xs text-gray-400 mt-2">
+                                Dao: <?php echo htmlspecialchars((string) ($manual['dao_element_label'] ?? 'Any'), ENT_QUOTES, 'UTF-8'); ?>
+                                · <?php echo htmlspecialchars((string) ($manual['dao_alignment_label'] ?? 'Universal'), ENT_QUOTES, 'UTF-8'); ?>
+                            </div>
+                            <div class="mt-2 text-xs <?php echo $daoOk ? 'text-emerald-300' : 'text-amber-300'; ?>">
+                                <?php echo $daoOk ? '✓ Bonuses active for your Dao path' : '○ Bonuses inactive (Dao mismatch)'; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="bg-gray-800/90 backdrop-blur-lg border border-emerald-500/30 rounded-xl p-6">
@@ -144,7 +206,3 @@ if ($equipment['accessory_2_id']) $inventoryIdToSlot[$equipment['accessory_2_id'
     <script src="../inventory.js"></script>
 </body>
 </html>
-
-
-
-

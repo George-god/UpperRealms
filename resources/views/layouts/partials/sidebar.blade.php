@@ -93,10 +93,11 @@
         </a>
 
         <p class="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ __('Path') }}</p>
-        <a href="{{ $realmClassic('character_sheet.php') }}" class="{{ $navClass($realmClassicActive('character_sheet.php')) }}">
+        <a href="{{ route('game.character') }}" class="{{ $navClass(request()->routeIs('game.character')) }}">
             <span class="text-lg" aria-hidden="true">📋</span>
             {{ __('Character') }}
         </a>
+        <x-codex-nav-link :active="request()->routeIs('game.codex')" :class="$navClass(request()->routeIs('game.codex'))" />
         <a href="{{ $realmClassic('inventory.php') }}" class="{{ $navClass($realmClassicActive('inventory.php')) }}">
             <span class="text-lg" aria-hidden="true">🎒</span>
             {{ __('Inventory') }}

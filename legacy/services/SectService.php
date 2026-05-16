@@ -595,7 +595,9 @@ class SectService
                     return ['success' => false, 'message' => 'Not enough contribution for this promotion.'];
                 }
                 if ((int)$member['realm_id'] < (int)$requirements['realm_id']) {
-                    return ['success' => false, 'message' => 'Realm is too low for this promotion.'];
+                    require_once dirname(__DIR__).'/includes/realm_display.php';
+
+                    return ['success' => false, 'message' => 'Reach '.realm_display_label_by_id((int)$requirements['realm_id']).' for this promotion.'];
                 }
             }
 

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\RealmDisplay;
+
 use App\Support\PdoDatabase;
 use App\Support\LegacyFileCache as Cache;
 use PDO;
@@ -590,7 +592,7 @@ class SectService
                     return ['success' => false, 'message' => 'Not enough contribution for this promotion.'];
                 }
                 if ((int)$member['realm_id'] < (int)$requirements['realm_id']) {
-                    return ['success' => false, 'message' => 'Realm is too low for this promotion.'];
+                    return ['success' => false, 'message' => 'Reach '.RealmDisplay::labelForId((int)$requirements['realm_id']).' for this promotion.'];
                 }
             }
 

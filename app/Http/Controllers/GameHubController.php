@@ -12,6 +12,7 @@ class GameHubController extends Controller
     public function __invoke(Request $request): View
     {
         $user = $request->user();
+        $user?->loadMissing('realm');
 
         return view('game.hub', [
             'onboardingActive' => $user->onboarding_completed_at === null,

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Stats\StatInvalidator;
 use App\Support\PdoDatabase;
 use PDO;
 use PDOException;
@@ -307,6 +308,8 @@ class ArtifactService
             $db->prepare('UPDATE user_artifacts SET equip_slot = ?, active_slot = CASE WHEN ? IS NOT NULL THEN NULL ELSE active_slot END WHERE id = ? AND user_id = ?')
                 ->execute([$slot, $slot, $userArtifactId, $userId]);
             $db->commit();
+            $this->invalidatePlayerStats($userId, 'artifacts');
+
             return ['success' => true, 'message' => $slot === null ? 'Artifact unequipped.' : 'Artifact socketed.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) {
@@ -354,6 +357,8 @@ class ArtifactService
             $db->prepare('UPDATE user_artifacts SET active_slot = ?, equip_slot = CASE WHEN ? IS NOT NULL THEN NULL ELSE equip_slot END WHERE id = ? AND user_id = ?')
                 ->execute([$slot, $slot, $userArtifactId, $userId]);
             $db->commit();
+            $this->invalidatePlayerStats($userId, 'artifacts');
+
             return ['success' => true, 'message' => $slot === null ? 'Artifact removed from active aura.' : 'Artifact attuned as active.'];
         } catch (PDOException $e) {
             if (isset($db) && $db->inTransaction()) {
@@ -432,5 +437,14 @@ class ArtifactService
         $st->execute([$userArtifactId, $userId]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
+    }
+
+    private function invalidatePlayerStats(int $userId, string $reason): void
+    {
+        if (! function_exists('app') || ! app()->bound(StatInvalidator::class)) {
+            return;
+        }
+
+        app(StatInvalidator::class)->invalidate($userId, $reason);
     }
 }

@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'game.admin' => \App\Http\Middleware\EnsureGameAdmin::class,
             'onboarding' => \App\Http\Middleware\EnsureOnboardingStarted::class,
+            'story.intro' => \App\Http\Middleware\EnsureStoryIntroComplete::class,
         ]);
         $middleware->validateCsrfTokens(except: [
             'game/classic/*',
