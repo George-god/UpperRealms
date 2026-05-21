@@ -1,0 +1,135 @@
+/* Spirit Veil prologue — atmospheric narrative UI */
+
+.story-root {
+    --story-mist: rgba(167, 243, 208, 0.12);
+    --story-glow: rgba(139, 92, 246, 0.35);
+    --story-gold: #e8b84a;
+}
+
+.story-veil {
+    position: relative;
+    min-height: calc(100vh - 4rem);
+    overflow: hidden;
+}
+
+.story-veil.theme-forest {
+    background:
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(52, 211, 153, 0.12), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 80% 100%, rgba(99, 102, 241, 0.15), transparent 50%),
+        linear-gradient(180deg, #050810 0%, #0a1220 45%, #050810 100%);
+}
+
+.story-veil.theme-village {
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(245, 158, 11, 0.1), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(99, 102, 241, 0.12), transparent 50%),
+        linear-gradient(180deg, #0a0f1a 0%, #12182a 50%, #0a0f1a 100%);
+}
+
+.story-particles {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.story-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--story-mist);
+    box-shadow: 0 0 8px var(--story-glow);
+    opacity: 0;
+    animation: story-float 10s ease-in-out infinite;
+}
+
+@keyframes story-float {
+    0%,
+    100% {
+        opacity: 0;
+        transform: translateY(0) scale(0.5);
+    }
+    25% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 0.4;
+        transform: translateY(-50px) scale(1);
+    }
+}
+
+.story-panel {
+    background: rgba(10, 14, 28, 0.82);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(139, 92, 246, 0.22);
+    box-shadow: 0 0 60px -20px rgba(99, 102, 241, 0.25);
+}
+
+.story-dialogue-line {
+    animation: story-fade-in 0.55s ease-out both;
+}
+
+@keyframes story-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.story-flashback {
+    animation: story-flash 1.2s ease-out both;
+}
+
+@keyframes story-flash {
+    0% {
+        opacity: 0;
+        filter: blur(6px);
+    }
+    30% {
+        opacity: 1;
+        filter: blur(0);
+    }
+    100% {
+        opacity: 0.85;
+    }
+}
+
+.story-cinematic-text {
+    animation: story-cine-in 1.8s ease-out both;
+}
+
+@keyframes story-cine-in {
+    from {
+        opacity: 0;
+        letter-spacing: 0.4em;
+    }
+    to {
+        opacity: 1;
+        letter-spacing: 0.12em;
+    }
+}
+
+.story-dream-sky {
+    background: radial-gradient(circle at 50% 30%, rgba(30, 27, 75, 0.9), #020617 70%);
+}
+
+.story-chain {
+    background: linear-gradient(90deg, transparent, rgba(232, 184, 74, 0.5), transparent);
+    height: 1px;
+    animation: story-chain-pulse 3s ease-in-out infinite;
+}
+
+@keyframes story-chain-pulse {
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 1;
+    }
+}

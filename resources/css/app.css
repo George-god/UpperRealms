@@ -1,0 +1,52 @@
+@import './realm-animations.css';
+@import './realm-visual-fx.css';
+@import './dungeon-combat.css';
+@import './character-build.css';
+@import './codex.css';
+@import './story-intro.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --realm-bg: #0b0f1a;
+        --realm-card: rgba(20, 25, 45, 0.7);
+        --realm-card-border: rgba(99, 102, 241, 0.2);
+        --realm-primary: #6366f1;
+        --realm-gold: #e8b84a;
+        --realm-accent-red: #f87171;
+        --realm-accent-blue: #38bdf8;
+        --realm-accent-green: #4ade80;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+}
+
+@layer components {
+    .realm-glass {
+        background: var(--realm-card);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .realm-transition {
+        transition-duration: 200ms;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .realm-nav-pill,
+    .realm-nav-quick {
+        transition-property: color, background-color, border-color, box-shadow, transform;
+        transition-duration: 200ms;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .realm-nav-pill:hover,
+    .realm-nav-quick:hover {
+        transform: translateY(-1px);
+    }
+}

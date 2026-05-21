@@ -1,214 +1,184 @@
 <?php
-declare(strict_types=1);
 
-namespace Game\Config;
+use Illuminate\Support\Str;
+use Pdo\Mysql;
 
-use PDO;
-use PDOException;
+return [
 
-/**
- * Database connection handler using PDO
- * Implements singleton pattern to ensure single database connection
- */
-class Database
-{
-    private static ?PDO $instance = null;
-    private static array $config = [];
+    /*
+    |--------------------------------------------------------------------------
+    | Default Database Connection Name
+    |--------------------------------------------------------------------------
+    |
+    | Here you may specify which of the database connections below you wish
+    | to use as your default connection for database operations. This is
+    | the connection which will be utilized unless another connection
+    | is explicitly specified when you execute a query / statement.
+    |
+    */
 
-    /**
-     * Private constructor to prevent direct instantiation
-     */
-    private function __construct()
-    {
-    }
+    'default' => env('DB_CONNECTION', 'sqlite'),
 
-    /**
-     * Prevent cloning of the instance
-     */
-    private function __clone()
-    {
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Database Connections
+    |--------------------------------------------------------------------------
+    |
+    | Below are all of the database connections defined for your application.
+    | An example configuration is provided for each database system which
+    | is supported by Laravel. You're free to add / remove connections.
+    |
+    */
 
-    /**
-     * Prevent unserialization of the instance
-     */
-    public function __wakeup(): void
-    {
-        throw new \Exception("Cannot unserialize singleton");
-    }
+    'connections' => [
 
-    /**
-     * Set database configuration
-     * Should be called before getConnection()
-     * 
-     * @param array $config Database configuration array
-     * @return void
-     */
-    public static function setConfig(array $config): void
-    {
-        self::$config = array_merge([
-            'host' => 'localhost',
-            'dbname' => 'cultivation_rpg',
-            'username' => 'root',
-            'password' => '',
-            'charset' => 'utf8mb4',
-            'options' => []
-        ], $config);
-    }
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'busy_timeout' => null,
+            'journal_mode' => null,
+            'synchronous' => null,
+            'transaction_mode' => 'DEFERRED',
+        ],
 
-    /**
-     * Get database connection instance
-     * Creates connection if it doesn't exist
-     * 
-     * @return PDO Database connection instance
-     * @throws PDOException If connection fails
-     */
-    public static function getConnection(): PDO
-    {
-        if (self::$instance === null) {
-            try {
-                // Use default config if not set
-                if (empty(self::$config)) {
-                    self::setConfig([]);
-                }
+        'mysql' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
 
-                $host = self::$config['host'];
-                $dbname = self::$config['dbname'];
-                $username = self::$config['username'];
-                $password = self::$config['password'];
-                $charset = self::$config['charset'];
+        'mariadb' => [
+            'driver' => 'mariadb',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
 
-                // Build DSN
-                $dsn = "mysql:host={$host};dbname={$dbname};charset={$charset}";
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
 
-                // Default PDO options
-                $defaultOptions = [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                    PDO::ATTR_PERSISTENT => false,
-                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES {$charset}"
-                ];
+        'sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => env('DB_PORT', '1433'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            // 'encrypt' => env('DB_ENCRYPT', 'yes'),
+            // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
+        ],
 
-                // Merge with custom options
-                $options = array_merge($defaultOptions, self::$config['options']);
+    ],
 
-                // Create PDO instance
-                self::$instance = new PDO($dsn, $username, $password, $options);
+    /*
+    |--------------------------------------------------------------------------
+    | Migration Repository Table
+    |--------------------------------------------------------------------------
+    |
+    | This table keeps track of all the migrations that have already run for
+    | your application. Using this information, we can determine which of
+    | the migrations on disk haven't actually been run on the database.
+    |
+    */
 
-            } catch (PDOException $e) {
-                // Log error (in production, use proper logging)
-                error_log("Database connection failed: " . $e->getMessage());
-                
-                // Re-throw with user-friendly message in development
-                // In production, you might want to show a generic error page
-                throw new PDOException(
-                    "Unable to connect to database. Please try again later.",
-                    0,
-                    $e
-                );
-            }
-        }
+    'migrations' => [
+        'table' => 'migrations',
+        'update_date_on_publish' => true,
+    ],
 
-        return self::$instance;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Redis Databases
+    |--------------------------------------------------------------------------
+    |
+    | Redis is an open source, fast, and advanced key-value store that also
+    | provides a richer body of commands than a typical key-value system
+    | such as Memcached. You may define your connection settings here.
+    |
+    */
 
-    /**
-     * Test database connection
-     * Useful for health checks or initialization scripts
-     * 
-     * @return bool True if connection is successful
-     */
-    public static function testConnection(): bool
-    {
-        try {
-            $pdo = self::getConnection();
-            $pdo->query("SELECT 1");
-            return true;
-        } catch (PDOException $e) {
-            error_log("Database connection test failed: " . $e->getMessage());
-            return false;
-        }
-    }
+    'redis' => [
 
-    /**
-     * Close database connection
-     * Useful for cleanup or testing
-     * 
-     * @return void
-     */
-    public static function closeConnection(): void
-    {
-        self::$instance = null;
-    }
+        'client' => env('REDIS_CLIENT', 'phpredis'),
 
-    /**
-     * Execute a prepared statement
-     * Helper method for common query execution
-     * 
-     * @param string $sql SQL query with placeholders
-     * @param array $params Parameters to bind
-     * @return \PDOStatement Executed statement
-     * @throws PDOException If query execution fails
-     */
-    public static function execute(string $sql, array $params = []): \PDOStatement
-    {
-        try {
-            $pdo = self::getConnection();
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-            return $stmt;
-        } catch (PDOException $e) {
-            error_log("Query execution failed: " . $e->getMessage() . " | SQL: " . $sql);
-            throw new PDOException(
-                "Database query failed. Please try again.",
-                0,
-                $e
-            );
-        }
-    }
+        'options' => [
+            'cluster' => env('REDIS_CLUSTER', 'redis'),
+            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-database-'),
+            'persistent' => env('REDIS_PERSISTENT', false),
+        ],
 
-    /**
-     * Begin a database transaction
-     * 
-     * @return bool True on success
-     * @throws PDOException If transaction start fails
-     */
-    public static function beginTransaction(): bool
-    {
-        return self::getConnection()->beginTransaction();
-    }
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+            'max_retries' => env('REDIS_MAX_RETRIES', 3),
+            'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+            'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
+            'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+        ],
 
-    /**
-     * Commit a database transaction
-     * 
-     * @return bool True on success
-     * @throws PDOException If commit fails
-     */
-    public static function commit(): bool
-    {
-        return self::getConnection()->commit();
-    }
+        'cache' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_CACHE_DB', '1'),
+            'max_retries' => env('REDIS_MAX_RETRIES', 3),
+            'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+            'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
+            'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+        ],
 
-    /**
-     * Rollback a database transaction
-     * 
-     * @return bool True on success
-     * @throws PDOException If rollback fails
-     */
-    public static function rollback(): bool
-    {
-        return self::getConnection()->rollBack();
-    }
+    ],
 
-    /**
-     * Get the last inserted ID
-     * 
-     * @param string|null $name Sequence name (not used in MySQL)
-     * @return string Last inserted ID
-     */
-    public static function lastInsertId(?string $name = null): string
-    {
-        return self::getConnection()->lastInsertId($name);
-    }
-}
+];

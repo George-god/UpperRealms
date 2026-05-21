@@ -1,0 +1,589 @@
+/**
+ * Dynamic cultivation realm ambient FX — GPU-friendly (opacity, transform, filter).
+ * Paired with resources/js/realm-visual-fx.js for light particles.
+ */
+
+.realm-fx-root {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+}
+
+.realm-fx-layer {
+    position: absolute;
+    inset: -12%;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+.realm-fx-particles-host {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+/* --- Base visibility by tier --- */
+.realm-fx--qi .realm-fx-ambient,
+.realm-fx--qi .realm-fx-glow {
+    opacity: 1;
+}
+
+.realm-fx--foundation .realm-fx-ambient,
+.realm-fx--foundation .realm-fx-glow,
+.realm-fx--foundation .realm-fx-rings {
+    opacity: 1;
+}
+
+.realm-fx--core .realm-fx-ambient,
+.realm-fx--core .realm-fx-glow,
+.realm-fx--core .realm-fx-auras,
+.realm-fx--core .realm-fx-ember {
+    opacity: 1;
+}
+
+.realm-fx--nascent .realm-fx-ambient,
+.realm-fx--nascent .realm-fx-glow,
+.realm-fx--nascent .realm-fx-lightning,
+.realm-fx--nascent .realm-fx-distort {
+    opacity: 1;
+}
+
+.realm-fx--transformation .realm-fx-ambient,
+.realm-fx--transformation .realm-fx-cosmic,
+.realm-fx--transformation .realm-fx-shimmer {
+    opacity: 1;
+}
+
+.realm-fx--immortal .realm-fx-ambient,
+.realm-fx--immortal .realm-fx-rays,
+.realm-fx--immortal .realm-fx-runes,
+.realm-fx--immortal .realm-fx-glow {
+    opacity: 1;
+}
+
+/* --- Qi Condensation: soft mist, light pulse --- */
+.realm-fx--qi .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 80% 55% at 50% 20%, rgba(147, 197, 253, 0.14), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 70% 80%, rgba(99, 102, 241, 0.1), transparent 50%);
+    animation: realm-fx-qi-breathe 7s ease-in-out infinite;
+}
+
+.realm-fx--qi .realm-fx-glow {
+    background: radial-gradient(circle at 50% 45%, rgba(224, 242, 254, 0.07), transparent 62%);
+    animation: realm-fx-soft-pulse 5s ease-in-out infinite;
+}
+
+@keyframes realm-fx-qi-breathe {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.85;
+    }
+    50% {
+        transform: scale(1.03);
+        opacity: 1;
+    }
+}
+
+@keyframes realm-fx-soft-pulse {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 0.95;
+    }
+}
+
+/* --- Foundation: earth ring, green energy --- */
+.realm-fx--foundation .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 90% 60% at 50% 100%, rgba(34, 197, 94, 0.12), transparent 55%),
+        radial-gradient(circle at 30% 30%, rgba(20, 83, 45, 0.08), transparent 45%);
+}
+
+.realm-fx--foundation .realm-fx-glow {
+    background: radial-gradient(circle at 50% 50%, rgba(74, 222, 128, 0.06), transparent 58%);
+    animation: realm-fx-soft-pulse 6s ease-in-out infinite;
+}
+
+.realm-fx--foundation .realm-fx-rings {
+    background: conic-gradient(from 0deg, transparent, rgba(52, 211, 153, 0.12), transparent 40%, rgba(16, 185, 129, 0.08), transparent 70%);
+    animation: realm-fx-ring-spin 22s linear infinite;
+    mask: radial-gradient(circle at 50% 50%, transparent 38%, black 39%, black 48%, transparent 49%);
+    -webkit-mask: radial-gradient(circle at 50% 50%, transparent 38%, black 39%, black 48%, transparent 49%);
+}
+
+@keyframes realm-fx-ring-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* --- Core Formation: fire core, orbit embers --- */
+.realm-fx--core .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 35%, rgba(251, 113, 133, 0.14), transparent 50%),
+        radial-gradient(circle at 50% 120%, rgba(185, 28, 28, 0.1), transparent 45%);
+    animation: realm-fx-core-throb 4.5s ease-in-out infinite;
+}
+
+.realm-fx--core .realm-fx-glow {
+    background: radial-gradient(circle at 50% 40%, rgba(253, 186, 116, 0.12), transparent 55%);
+    animation: realm-fx-soft-pulse 3.2s ease-in-out infinite;
+}
+
+.realm-fx--core .realm-fx-auras {
+    background: radial-gradient(circle at 50% 42%, rgba(249, 115, 22, 0.08), transparent 35%);
+    animation: realm-fx-core-throb 4.5s ease-in-out infinite reverse;
+}
+
+.realm-fx--core .realm-fx-ember {
+    background:
+        radial-gradient(circle at 20% 30%, rgba(251, 146, 60, 0.06) 0, transparent 3%),
+        radial-gradient(circle at 80% 25%, rgba(248, 113, 113, 0.05) 0, transparent 3%),
+        radial-gradient(circle at 60% 70%, rgba(234, 88, 12, 0.05) 0, transparent 3%);
+    animation: realm-fx-orbit-dots 14s linear infinite;
+}
+
+@keyframes realm-fx-core-throb {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.04);
+    }
+}
+
+@keyframes realm-fx-orbit-dots {
+    to {
+        transform: rotate(360deg) scale(1.02);
+    }
+}
+
+/* --- Nascent Soul: lightning, purple, subtle warp --- */
+.realm-fx--nascent .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 85% 60% at 50% 30%, rgba(167, 139, 250, 0.16), transparent 55%),
+        radial-gradient(circle at 80% 70%, rgba(88, 28, 135, 0.1), transparent 40%);
+}
+
+.realm-fx--nascent .realm-fx-glow {
+    background: radial-gradient(circle at 50% 45%, rgba(192, 132, 252, 0.08), transparent 60%);
+    animation: realm-fx-soft-pulse 3.8s ease-in-out infinite;
+}
+
+.realm-fx--nascent .realm-fx-lightning {
+    background: linear-gradient(
+        105deg,
+        transparent 40%,
+        rgba(216, 180, 254, 0.15) 48%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(167, 139, 250, 0.12) 52%,
+        transparent 58%
+    );
+    animation: realm-fx-bolt-flicker 2.8s steps(2, end) infinite;
+    mix-blend-mode: screen;
+}
+
+.realm-fx--nascent .realm-fx-distort {
+    background: repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 3px, rgba(139, 92, 246, 0.03) 4px, transparent 6px);
+    animation: realm-fx-warp 10s ease-in-out infinite;
+    opacity: 0.7;
+}
+
+@keyframes realm-fx-bolt-flicker {
+    0%,
+    100% {
+        opacity: 0.15;
+        transform: translateX(-2%);
+    }
+    50% {
+        opacity: 0.55;
+        transform: translateX(2%);
+    }
+}
+
+@keyframes realm-fx-warp {
+    0%,
+    100% {
+        transform: scale(1) rotate(0deg);
+        filter: blur(0);
+    }
+    33% {
+        transform: scale(1.01) rotate(0.3deg);
+        filter: blur(0.5px);
+    }
+    66% {
+        transform: scale(0.995) rotate(-0.25deg);
+        filter: blur(0);
+    }
+}
+
+/* --- Soul Transformation: cosmic drift, shimmer --- */
+.realm-fx--transformation .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 100% 80% at 50% 0%, rgba(56, 189, 248, 0.08), transparent 50%),
+        radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.1), transparent 45%),
+        radial-gradient(circle at 85% 60%, rgba(236, 72, 153, 0.06), transparent 40%);
+}
+
+.realm-fx--transformation .realm-fx-cosmic {
+    background-image:
+        radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.35), transparent),
+        radial-gradient(1px 1px at 30% 70%, rgba(255, 255, 255, 0.25), transparent),
+        radial-gradient(1px 1px at 70% 40%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 90% 85%, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(1px 1px at 55% 15%, rgba(196, 181, 253, 0.4), transparent);
+    background-size: 120% 120%;
+    animation: realm-fx-stars-drift 48s linear infinite;
+    opacity: 0.65;
+}
+
+.realm-fx--transformation .realm-fx-shimmer {
+    background: linear-gradient(
+        120deg,
+        transparent 35%,
+        rgba(255, 255, 255, 0.04) 48%,
+        rgba(165, 180, 252, 0.08) 50%,
+        transparent 62%
+    );
+    background-size: 200% 200%;
+    animation: realm-fx-shimmer-slide 11s ease-in-out infinite;
+    mix-blend-mode: overlay;
+}
+
+@keyframes realm-fx-stars-drift {
+    to {
+        background-position: 100% 100%;
+    }
+}
+
+@keyframes realm-fx-shimmer-slide {
+    0%,
+    100% {
+        background-position: 0% 50%;
+        opacity: 0.4;
+    }
+    50% {
+        background-position: 100% 50%;
+        opacity: 0.85;
+    }
+}
+
+/* --- Immortal: gold rays, runes, divine haze --- */
+.realm-fx--immortal .realm-fx-ambient {
+    background:
+        radial-gradient(ellipse 80% 55% at 50% -10%, rgba(253, 224, 71, 0.12), transparent 55%),
+        radial-gradient(circle at 50% 100%, rgba(180, 83, 9, 0.08), transparent 50%);
+}
+
+.realm-fx--immortal .realm-fx-glow {
+    background: radial-gradient(circle at 50% 35%, rgba(250, 204, 21, 0.1), transparent 55%);
+    animation: realm-fx-soft-pulse 5.5s ease-in-out infinite;
+}
+
+.realm-fx--immortal .realm-fx-rays {
+    background: repeating-conic-gradient(from 0deg at 50% 40%, transparent 0 8deg, rgba(251, 191, 36, 0.04) 8deg 9deg);
+    animation: realm-fx-ray-rotate 120s linear infinite;
+    mask: radial-gradient(circle at 50% 40%, transparent 30%, black 72%);
+    -webkit-mask: radial-gradient(circle at 50% 40%, transparent 30%, black 72%);
+    opacity: 0.85;
+}
+
+.realm-fx--immortal .realm-fx-runes {
+    font-size: clamp(1.5rem, 4vw, 2.75rem);
+    line-height: 1.8;
+    color: rgba(253, 224, 71, 0.07);
+    text-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+    white-space: pre-wrap;
+    text-align: center;
+    padding-top: 8%;
+    letter-spacing: 0.5em;
+    animation: realm-fx-rune-float 20s ease-in-out infinite;
+    user-select: none;
+}
+
+.realm-fx--immortal .realm-fx-runes::before {
+    content: '✧ ⌬ ◈ ✦ ⌖ ✧ ◈ ✦ \A ⌬ ✦ ✧ ⌖ ◈ ✧ ✦ ⌬';
+    display: block;
+}
+
+@keyframes realm-fx-ray-rotate {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes realm-fx-rune-float {
+    0%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.55;
+    }
+    50% {
+        transform: translateY(-12px);
+        opacity: 0.9;
+    }
+}
+
+/* --- Dao path overlays (optional) --- */
+.realm-fx--dao-fire .realm-fx-dao-overlay {
+    opacity: 0.55;
+    background:
+        radial-gradient(circle at 50% 110%, rgba(220, 38, 38, 0.12), transparent 45%),
+        repeating-linear-gradient(180deg, transparent, transparent 40px, rgba(251, 146, 60, 0.03) 41px);
+    animation: realm-fx-ember-rise 8s linear infinite;
+}
+
+.realm-fx--dao-water .realm-fx-dao-overlay {
+    opacity: 0.5;
+    background: linear-gradient(185deg, transparent 30%, rgba(56, 189, 248, 0.08) 90%);
+    animation: realm-fx-flow 12s ease-in-out infinite;
+}
+
+.realm-fx--dao-wood .realm-fx-dao-overlay {
+    opacity: 0.45;
+    background: radial-gradient(ellipse 60% 40% at 20% 80%, rgba(34, 197, 94, 0.1), transparent);
+}
+
+.realm-fx--dao-metal .realm-fx-dao-overlay {
+    opacity: 0.4;
+    background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.06), transparent);
+    animation: realm-fx-shimmer-slide 14s linear infinite;
+}
+
+.realm-fx--dao-earth .realm-fx-dao-overlay {
+    opacity: 0.45;
+    background: radial-gradient(circle at 50% 100%, rgba(120, 113, 108, 0.12), transparent 50%);
+}
+
+.realm-fx--dao-ice .realm-fx-dao-overlay {
+    opacity: 0.5;
+    background: radial-gradient(circle at 70% 20%, rgba(186, 230, 253, 0.1), transparent 50%);
+    animation: realm-fx-soft-pulse 7s ease-in-out infinite;
+}
+
+.realm-fx--dao-demonic .realm-fx-dao-overlay {
+    opacity: 0.55;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(88, 28, 135, 0.15), transparent 55%),
+        repeating-linear-gradient(95deg, transparent, transparent 18px, rgba(15, 23, 42, 0.04) 19px);
+    mix-blend-mode: multiply;
+}
+
+.realm-fx--dao-righteous .realm-fx-dao-overlay {
+    opacity: 0.45;
+    background: radial-gradient(circle at 50% 0%, rgba(254, 249, 195, 0.12), transparent 45%);
+}
+
+.realm-fx--dao-neutral .realm-fx-dao-overlay {
+    opacity: 0.35;
+    background: radial-gradient(circle at 50% 50%, rgba(148, 163, 184, 0.06), transparent 60%);
+}
+
+@keyframes realm-fx-ember-rise {
+    to {
+        background-position: 0 -80px;
+    }
+}
+
+@keyframes realm-fx-flow {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* --- Bloodline overlays --- */
+.realm-fx--blood-dragon .realm-fx-bloodline-overlay {
+    opacity: 0.45;
+    background:
+        radial-gradient(circle at 10% 50%, rgba(239, 68, 68, 0.08), transparent 35%),
+        radial-gradient(circle at 90% 40%, rgba(251, 191, 36, 0.06), transparent 30%);
+    animation: realm-fx-soft-pulse 6s ease-in-out infinite;
+}
+
+.realm-fx--blood-phoenix .realm-fx-bloodline-overlay {
+    opacity: 0.5;
+    background: radial-gradient(ellipse 50% 35% at 50% 80%, rgba(249, 115, 22, 0.12), transparent);
+    animation: realm-fx-core-throb 5s ease-in-out infinite;
+}
+
+.realm-fx--blood-demon .realm-fx-bloodline-overlay {
+    opacity: 0.5;
+    background: radial-gradient(circle at 50% 100%, rgba(67, 56, 202, 0.12), transparent 50%);
+}
+
+.realm-fx--blood-celestial .realm-fx-bloodline-overlay {
+    opacity: 0.4;
+    background: radial-gradient(circle at 50% 0%, rgba(224, 231, 255, 0.1), transparent 45%);
+}
+
+.realm-fx--blood-beast .realm-fx-bloodline-overlay {
+    opacity: 0.42;
+    background: radial-gradient(circle at 30% 70%, rgba(120, 113, 108, 0.1), transparent 40%);
+}
+
+.realm-fx--blood-generic .realm-fx-bloodline-overlay {
+    opacity: 0.35;
+    background: radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.06), transparent 55%);
+}
+
+/* --- Realm banner / Spirit Hall focal halo (scoped, matches page tier) --- */
+.realm-window-fx-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 24rem;
+    isolation: isolate;
+}
+
+.realm-window-fx-wrap .realm-fx-card-halo,
+.realm-window-fx-wrap .realm-fx-card-ring {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 0.75rem;
+    z-index: 0;
+}
+
+.realm-window-fx-wrap .realm-fx-card-halo {
+    inset: -6px;
+    opacity: 0.88;
+}
+
+.realm-window-fx-wrap .realm-fx-card-ring {
+    inset: -11px;
+    border-radius: 0.85rem;
+    opacity: 0;
+    mask: radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 58%, transparent 60%);
+    -webkit-mask: radial-gradient(circle at 50% 50%, transparent 52%, black 54%, black 58%, transparent 60%);
+}
+
+.realm-window-fx-wrap .realm-window {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes realm-fx-card-breathe {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.78;
+    }
+    50% {
+        transform: scale(1.02);
+        opacity: 1;
+    }
+}
+
+.realm-fx-card--qi .realm-fx-card-halo {
+    background: radial-gradient(ellipse 85% 72% at 50% 50%, rgba(147, 197, 253, 0.38), transparent 66%);
+    box-shadow:
+        0 0 36px rgba(34, 211, 238, 0.28),
+        inset 0 0 24px rgba(224, 242, 254, 0.1);
+    animation: realm-fx-card-breathe 6.5s ease-in-out infinite;
+}
+
+.realm-fx-card--foundation .realm-fx-card-halo {
+    background: radial-gradient(ellipse 95% 78% at 50% 100%, rgba(74, 222, 128, 0.28), transparent 62%);
+    box-shadow: 0 0 32px rgba(34, 197, 94, 0.22);
+}
+
+.realm-fx-card--foundation .realm-fx-card-ring {
+    opacity: 0.8;
+    background: conic-gradient(from 0deg, transparent, rgba(52, 211, 153, 0.4), transparent 40%, rgba(16, 185, 129, 0.22), transparent 70%);
+    animation: realm-fx-ring-spin 18s linear infinite;
+}
+
+.realm-fx-card--core .realm-fx-card-halo {
+    background: radial-gradient(circle at 50% 40%, rgba(251, 113, 133, 0.32), transparent 56%);
+    box-shadow: 0 0 40px rgba(249, 115, 22, 0.26);
+    animation: realm-fx-core-throb 4.2s ease-in-out infinite;
+}
+
+.realm-fx-card--nascent .realm-fx-card-halo {
+    background: radial-gradient(circle at 50% 45%, rgba(167, 139, 250, 0.34), transparent 58%);
+    box-shadow: 0 0 44px rgba(139, 92, 246, 0.3);
+    animation: realm-fx-soft-pulse 3.6s ease-in-out infinite;
+}
+
+.realm-fx-card--transformation .realm-fx-card-halo {
+    background:
+        radial-gradient(circle at 22% 28%, rgba(56, 189, 248, 0.18), transparent 42%),
+        radial-gradient(circle at 78% 72%, rgba(236, 72, 153, 0.14), transparent 46%);
+    box-shadow: 0 0 38px rgba(99, 102, 241, 0.26);
+}
+
+.realm-fx-card--immortal .realm-fx-card-halo {
+    background: radial-gradient(circle at 50% 36%, rgba(253, 224, 71, 0.3), transparent 56%);
+    box-shadow:
+        0 0 44px rgba(234, 179, 8, 0.32),
+        0 0 72px rgba(251, 191, 36, 0.14);
+    animation: realm-fx-soft-pulse 5.2s ease-in-out infinite;
+}
+
+.realm-fx-card--immortal .realm-fx-card-ring {
+    opacity: 0.55;
+    background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0 10deg, rgba(251, 191, 36, 0.14) 10deg 11deg);
+    animation: realm-fx-ray-rotate 48s linear infinite;
+    mask: radial-gradient(circle at 50% 50%, transparent 44%, black 50%, black 57%, transparent 63%);
+    -webkit-mask: radial-gradient(circle at 50% 50%, transparent 44%, black 50%, black 57%, transparent 63%);
+}
+
+.realm-fx-card--dao-fire .realm-fx-card-halo {
+    box-shadow:
+        0 0 46px rgba(239, 68, 68, 0.22),
+        0 0 32px rgba(251, 146, 60, 0.16);
+}
+
+.realm-fx-card--dao-water .realm-fx-card-halo {
+    box-shadow: 0 0 40px rgba(14, 165, 233, 0.22);
+}
+
+.realm-fx-card--dao-demonic .realm-fx-card-halo {
+    box-shadow: 0 0 42px rgba(88, 28, 135, 0.28);
+}
+
+.realm-fx-card--dao-righteous .realm-fx-card-halo {
+    box-shadow: 0 0 38px rgba(254, 249, 195, 0.2);
+}
+
+.realm-fx-card--blood-dragon .realm-fx-card-halo {
+    box-shadow:
+        0 0 36px rgba(239, 68, 68, 0.2),
+        0 0 28px rgba(251, 191, 36, 0.12);
+}
+
+.realm-fx-card--blood-phoenix .realm-fx-card-halo {
+    box-shadow: 0 0 40px rgba(249, 115, 22, 0.22);
+}
+
+.realm-fx-card--blood-celestial .realm-fx-card-halo {
+    box-shadow: 0 0 36px rgba(224, 231, 255, 0.18);
+}
+
+/* --- Respect reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+    .realm-fx-root *,
+    .realm-fx-root *::before {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+
+    .realm-fx-particles-host {
+        display: none !important;
+    }
+
+    .realm-window-fx-wrap .realm-fx-card-halo,
+    .realm-window-fx-wrap .realm-fx-card-ring {
+        animation: none !important;
+    }
+}
