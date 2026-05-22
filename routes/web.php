@@ -49,7 +49,7 @@ Route::middleware('web')->group(function () use ($legacyJs) {
         ->where('path', '[A-Za-z0-9_\-/\.]+')
         ->name('game.legacy-assets');
 
-    $legacyPage = '[A-Za-z0-9_\.]+';
+    $legacyPage = '[A-Za-z0-9_]+';
 
     Route::any('/game/classic/{page}', [LegacyPhpController::class, 'pages'])
         ->where('page', $legacyPage)
@@ -63,7 +63,7 @@ Route::middleware('web')->group(function () use ($legacyJs) {
 });
 
 Route::middleware(['web', 'auth', 'game.admin'])->group(function () {
-    $legacyPage = '[A-Za-z0-9_\.]+';
+    $legacyPage = '[A-Za-z0-9_]+';
 
     Route::any('/game/admin/{page}', [LegacyPhpController::class, 'admin'])
         ->where('page', $legacyPage);
