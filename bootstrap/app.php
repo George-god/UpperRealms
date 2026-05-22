@@ -11,6 +11,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(\App\Http\Middleware\NormalizeLegacyPhpRoute::class);
+
         $middleware->alias([
             'game.admin' => \App\Http\Middleware\EnsureGameAdmin::class,
             'onboarding' => \App\Http\Middleware\EnsureOnboardingStarted::class,

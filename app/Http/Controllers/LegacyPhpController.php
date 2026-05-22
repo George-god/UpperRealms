@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Support\LegacyRouteNormalizer;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -36,13 +37,12 @@ final class LegacyPhpController extends Controller
 
     private function run(Request $request, string $subdir, string $page): SymfonyResponse
     {
-        $script = strtolower($page);
-        if (! str_ends_with($script, '.php')) {
-            $script .= '.php';
-        }
-        if (! preg_match('/^[a-z0-9_]+\.php$/', $script)) {
+        $pageName = LegacyRouteNormalizer::normalizePageName($page);
+        if ($pageName === null) {
             abort(404);
         }
+
+        $script = (string) ($request->attributes->get('legacy_script') ?? $pageName.'.php');
 
         $base = realpath(base_path('legacy/'.$subdir));
         $path = realpath(base_path('legacy/'.$subdir.'/'.$script));
@@ -52,6 +52,10 @@ final class LegacyPhpController extends Controller
 
         $isSeasonCron = $subdir === 'controllers' && $script === 'season_process.php';
         if ($isSeasonCron) {
+            $_SERVER['REQUEST_METHOD'] = $request->method();
+            $_SERVER['REQUEST_URI'] = $request->getRequestUri();
+            $_SERVER['QUERY_STRING'] = (string) ($request->server->get('QUERY_STRING') ?? '');
+
             ob_start();
             try {
                 require $path;
@@ -90,6 +94,8 @@ final class LegacyPhpController extends Controller
         $_SESSION['realm_id'] = $user->realm_id;
         $_SESSION['level'] = $user->level;
 
+        $this->bridgeLegacyServerGlobals($request, $subdir, $script);
+
         ob_start();
         try {
             require $path;
@@ -104,5 +110,29 @@ final class LegacyPhpController extends Controller
         }
 
         return response('', 200);
+    }
+
+    /**
+     * Legacy pages read $_SERVER directly (REQUEST_METHOD, etc.).
+     */
+    private function bridgeLegacyServerGlobals(Request $request, string $subdir, string $script): void
+    {
+        $prefix = match ($subdir) {
+            'pages' => (string) ($request->attributes->get('legacy_route_prefix') ?? 'classic'),
+            'controllers' => 'controllers',
+            'admin' => 'admin',
+            default => $subdir,
+        };
+
+        $page = (string) ($request->attributes->get('legacy_page')
+            ?? LegacyRouteNormalizer::normalizePageName(pathinfo($script, PATHINFO_FILENAME)));
+
+        $_SERVER['REQUEST_METHOD'] = $request->method();
+        $_SERVER['REQUEST_URI'] = $request->getRequestUri();
+        $_SERVER['QUERY_STRING'] = (string) ($request->server->get('QUERY_STRING') ?? '');
+        $_SERVER['HTTP_HOST'] = $request->getHost();
+        $_SERVER['HTTPS'] = $request->isSecure() ? 'on' : 'off';
+        $_SERVER['PHP_SELF'] = '/game/'.$prefix.'/'.$page;
+        $_SERVER['SCRIPT_NAME'] = $_SERVER['PHP_SELF'];
     }
 }
