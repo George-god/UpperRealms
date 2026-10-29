@@ -26,7 +26,7 @@
             {{ __('Dashboard') }}
         </a>
         <a
-            href="{{ $realmClassic('game.php') }}"
+            href="{{ route('game.hub') }}"
             class="realm-nav-pill hidden items-center gap-1.5 rounded-xl border border-indigo-500/20 bg-[#0B0F1A]/40 px-3 py-1.5 text-xs font-medium text-slate-200/90 backdrop-blur-sm transition hover:border-violet-400/35 hover:text-white md:inline-flex sm:text-sm"
         >
             <span aria-hidden="true">☯️</span>

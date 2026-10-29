@@ -73,7 +73,7 @@
             <span class="text-lg" aria-hidden="true">🏯</span>
             {{ __('Dashboard') }}
         </a>
-        <a href="{{ $realmClassic('game.php') }}" class="{{ $navClass($realmClassicActive('game.php')) }}">
+        <a href="{{ route('game.hub') }}" class="{{ $navClass(route('game.hub')) }}">
             <span class="text-lg" aria-hidden="true">☯️</span>
             {{ __('Spirit hall') }}
         </a>

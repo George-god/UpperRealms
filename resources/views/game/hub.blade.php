@@ -17,7 +17,7 @@
             'label' => __('Cultivation & spirit'),
             'summary' => __('Dashboard, meditate, breakthrough, Dao'),
             'items' => [
-                ['href' => $classic('game.php'), 'icon' => '🏯', 'label' => __('Spirit hall'), 'desc' => __('Meditate, breakthrough, and tend your cultivation core')],
+                ['href' => route('game.hub'), 'icon' => '🏯', 'label' => __('Spirit hall'), 'desc' => __('Meditate, breakthrough, and tend your cultivation core')],
                 ['href' => $classic('cultivate_action.php'), 'icon' => '☯️', 'label' => __('Cultivate'), 'desc' => __('Meditation / chi actions')],
                 ['href' => $classic('tribulation.php'), 'icon' => '⛈️', 'label' => __('Tribulations'), 'desc' => __('Heavenly tribulation runs')],
                 ['href' => $classic('dao_paths.php'), 'icon' => '☯️', 'label' => __('Dao paths'), 'desc' => __('Path selection & bonuses')],
