@@ -37,7 +37,7 @@ return new class extends Migration
             $table->string('username', 30)->unique();
             $table->string('email')->unique();
             $table->string('password_hash');
-            $table->rememberToken();
+            // Added by 2026_05_22_160743, just as on the game schema.
             $table->boolean('is_admin')->default(false);
             $table->unsignedInteger('realm_id')->default(1);
             $table->unsignedInteger('level')->default(1);
