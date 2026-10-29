@@ -6,70 +6,10 @@ namespace Tests\Feature;
 
 use App\Services\SeasonService;
 use Illuminate\Support\Facades\DB;
-use PDO;
-use Tests\TestCase;
+use Tests\Support\DisposableSeasonDatabase;
 
-/**
- * Opt-in MariaDB characterization tests. Never use DB_* or an existing schema.
- * Each test creates and drops its own random database on a disposable local server.
- */
-class SeasonProcessingTest extends TestCase
+class SeasonProcessingTest extends DisposableSeasonDatabase
 {
-    private ?PDO $admin = null;
-
-    private ?string $database = null;
-
-    protected function setUp(): void
-    {
-        if (getenv('SEASON_TEST_MARIADB') !== '1') {
-            $this->markTestSkipped('Requires opt-in disposable loopback MariaDB; see docs/season-processing-tests.md.');
-        }
-
-        parent::setUp();
-
-        $this->assertTrue($this->app->environment('testing'));
-        $this->assertContains('mysql', PDO::getAvailableDrivers(), 'pdo_mysql is required.');
-        $port = (int) (getenv('SEASON_TEST_PORT') ?: 3307);
-        $user = getenv('SEASON_TEST_USER') ?: 'root';
-        $password = getenv('SEASON_TEST_PASSWORD') ?: '';
-        // Host is deliberately not configurable. This must be a disposable local instance.
-        $this->admin = new PDO("mysql:host=127.0.0.1;port={$port};charset=utf8mb4", $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        $this->database = 'upperrealms_season_test_'.bin2hex(random_bytes(8));
-        $this->admin->exec("CREATE DATABASE `{$this->database}`");
-        config(['database.default' => 'season_test', 'database.connections.season_test' => [
-            'driver' => 'mysql', 'host' => '127.0.0.1', 'port' => $port,
-            'database' => $this->database, 'username' => $user, 'password' => $password,
-            'charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci', 'prefix' => '',
-        ]]);
-
-        // Minimal synthetic schema for the actual SQL used by finalization and its helpers.
-        foreach ([
-            'CREATE TABLE users (id INT PRIMARY KEY, gold BIGINT NOT NULL DEFAULT 0, spirit_stones INT NOT NULL DEFAULT 0) ENGINE=InnoDB',
-            "CREATE TABLE seasons (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(120), slug VARCHAR(64) UNIQUE, starts_at DATETIME, ends_at DATETIME, status VARCHAR(16), weight_pvp DECIMAL(12,6) DEFAULT 1, weight_boss DECIMAL(12,6) DEFAULT 0.01, weight_cultivation DECIMAL(12,6) DEFAULT 1, weight_sect DECIMAL(12,6) DEFAULT 5) ENGINE=InnoDB",
-            'CREATE TABLE season_rankings (season_id INT, user_id INT, total_score BIGINT DEFAULT 0, score_pvp INT DEFAULT 0, score_world_boss BIGINT DEFAULT 0, score_cultivation INT DEFAULT 0, score_sect INT DEFAULT 0, rank_overall INT NULL, rank_pvp INT NULL, rank_boss INT NULL, rank_cultivation INT NULL, rank_sect INT NULL, PRIMARY KEY (season_id, user_id)) ENGINE=InnoDB',
-            'CREATE TABLE titles (id INT PRIMARY KEY, name VARCHAR(100)) ENGINE=InnoDB',
-            'CREATE TABLE user_titles (user_id INT, title_id INT, PRIMARY KEY (user_id, title_id)) ENGINE=InnoDB',
-            'CREATE TABLE notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, type VARCHAR(40), title VARCHAR(255), message TEXT, related_id INT NULL, related_type VARCHAR(40) NULL) ENGINE=InnoDB',
-        ] as $sql) {
-            DB::statement($sql);
-        }
-        foreach (range(13, 18) as $id) {
-            DB::table('titles')->insert(['id' => $id, 'name' => 'Synthetic title '.$id]);
-        }
-    }
-
-    protected function tearDown(): void
-    {
-        try {
-            if ($this->database !== null) {
-                DB::disconnect('season_test');
-                $this->admin->exec("DROP DATABASE `{$this->database}`");
-            }
-        } finally {
-            parent::tearDown();
-        }
-    }
-
     public function test_rewards_ranks_titles_notifications_and_repeat_execution(): void
     {
         $season = $this->season('-1 DAY');
@@ -176,12 +116,4 @@ class SeasonProcessingTest extends TestCase
         $this->assertSame(2, DB::table('seasons')->count());
     }
 
-    private function season(string $offset, string $status = 'active'): int
-    {
-        return DB::table('seasons')->insertGetId([
-            'name' => 'Synthetic season', 'slug' => bin2hex(random_bytes(8)),
-            'starts_at' => DB::raw('DATE_SUB(NOW(), INTERVAL 30 DAY)'),
-            'ends_at' => DB::raw('DATE_ADD(NOW(), INTERVAL '.$offset.')'), 'status' => $status,
-        ]);
-    }
 }

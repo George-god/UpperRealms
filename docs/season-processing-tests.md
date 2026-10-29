@@ -27,7 +27,7 @@ MariaDB is required to test the real `FOR UPDATE`, `NOW()`, `INSERT IGNORE`, and
 `DATE_ADD` behavior. These tests must not be pointed at a normal development or
 production database. Provision a **disposable local MariaDB instance** first.
 
-Explicitly set `SEASON_TEST_MARIADB=1`, `SEASON_TEST_PORT` (default 3307),
+Explicitly set `SEASON_TEST_MARIADB=1`, `SEASON_TEST_DISPOSABLE=1`, `SEASON_TEST_PORT` (default 3307; 3306 is refused),
 `SEASON_TEST_USER` (default root), and optionally `SEASON_TEST_PASSWORD` using only
 that disposable instance's credentials. Then run:
 
@@ -41,6 +41,10 @@ loads a minimal synthetic schema, and drops only that database during teardown.
 The dedicated local account needs CREATE/DROP DATABASE permission. If a test
 process is killed, destroy the disposable MariaDB instance to remove leftovers.
 Never forward the loopback test port to another server.
+
+Phase 2B shares this fixture with process-based concurrency tests. For exact
+disposable-container setup, bounded waits, characterization expectations and cleanup,
+see [season-concurrency-tests-phase-2b.md](season-concurrency-tests-phase-2b.md).
 
 Coverage: expiry and equality boundary, multiple-season order, ties, all currency
 tiers, positive-score eligibility, category titles, notifications, sequential
