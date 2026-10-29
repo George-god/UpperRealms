@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 use Tests\Support\DisposableSeasonDatabase;
+use Throwable;
 
 /** Characterizations of specific interleavings, not a proof of general concurrency safety. */
 class SeasonConcurrencyTest extends DisposableSeasonDatabase
@@ -18,22 +19,35 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
 
     protected function tearDown(): void
     {
-        try {
-            foreach ($this->workers as $worker) {
+        foreach ($this->workers as $worker) {
+            try {
                 if ($worker->isRunning()) {
                     $worker->stop(1);
                 }
-            }
-            if ($this->barriers !== null) {
-                foreach (glob($this->barriers.'/*') as $file) {
-                    unlink($file);
+                if ($worker->isRunning()) {
+                    $this->cleanupErrors[] = 'Child test worker is still running after stop.';
                 }
-                rmdir($this->barriers);
+            } catch (Throwable $error) {
+                $this->cleanupErrors[] = 'Child worker cleanup failed ('.$error::class.').';
             }
-        } finally {
-            // Stop children before dropping the random database, including on assertion failure.
-            parent::tearDown();
         }
+        if ($this->barriers !== null) {
+            $files = glob($this->barriers.'/*');
+            if ($files === false) {
+                $this->cleanupErrors[] = 'Could not enumerate test barrier files.';
+            } else {
+                foreach ($files as $file) {
+                    if (! @unlink($file)) {
+                        $this->cleanupErrors[] = 'Could not remove test barrier file '.basename($file).'.';
+                    }
+                }
+            }
+            if (! @rmdir($this->barriers)) {
+                $this->cleanupErrors[] = 'Could not remove test barrier directory '.$this->barriers.'.';
+            }
+        }
+        // Always attempt database/Laravel cleanup, and report all accumulated failures.
+        parent::tearDown();
     }
 
     public function test_two_processors_wait_on_a_real_row_lock_and_reward_once(): void
@@ -49,7 +63,7 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
         $secondId = (int) file_get_contents($this->barriers.'/second.connection');
         $this->assertNotSame($firstId, $secondId);
         $this->await(function () use ($firstId, $secondId) {
-            return (int) $this->admin->query("SELECT COUNT(*) FROM information_schema.INNODB_LOCK_WAITS w JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id WHERE r.trx_mysql_thread_id = {$secondId} AND b.trx_mysql_thread_id = {$firstId}")->fetchColumn() > 0;
+            return (int) $this->parentDatabaseOperation('observe processor lock wait', fn () => $this->admin->query("SELECT COUNT(*) FROM information_schema.INNODB_LOCK_WAITS w JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id WHERE r.trx_mysql_thread_id = {$secondId} AND b.trx_mysql_thread_id = {$firstId}")->fetchColumn()) > 0;
         }, 'Second processor never entered an observable database lock wait.');
         $this->release('first');
         $a = $this->finishWorker($first);

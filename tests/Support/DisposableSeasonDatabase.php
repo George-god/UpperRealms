@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
-use App\Services\SeasonService;
 use Illuminate\Support\Facades\DB;
 use PDO;
+use RuntimeException;
 use Tests\TestCase;
+use Throwable;
 
 /**
  * Opt-in MariaDB characterization tests. Never use DB_* or an existing schema.
@@ -18,6 +19,8 @@ abstract class DisposableSeasonDatabase extends TestCase
     protected ?PDO $admin = null;
 
     protected ?string $database = null;
+
+    protected array $cleanupErrors = [];
 
     protected function setUp(): void
     {
@@ -43,16 +46,28 @@ abstract class DisposableSeasonDatabase extends TestCase
         $user = getenv('SEASON_TEST_USER') ?: 'root';
         $password = getenv('SEASON_TEST_PASSWORD') ?: '';
         // Host is deliberately not configurable. This must be a disposable local instance.
-        $this->admin = new PDO("mysql:host=127.0.0.1;port={$port};charset=utf8mb4", $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]);
+        $this->admin = $this->parentDatabaseOperation('connect administrative session', fn () => new PDO("mysql:host=127.0.0.1;port={$port};charset=utf8mb4", $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]));
+        $this->parentDatabaseOperation('configure administrative session limits', function () {
+            $this->admin->exec('SET SESSION max_statement_time = 10');
+            $this->admin->exec('SET SESSION lock_wait_timeout = 5');
+            $this->admin->exec('SET SESSION innodb_lock_wait_timeout = 5');
+        });
         $database = 'upperrealms_season_test_'.bin2hex(random_bytes(8));
-        $this->admin->exec("CREATE DATABASE `{$database}`");
+        $this->parentDatabaseOperation('create disposable database', fn () => $this->admin->exec("CREATE DATABASE `{$database}`"));
         // Teardown only owns a schema after CREATE succeeded.
         $this->database = $database;
         config(['database.default' => 'season_test', 'database.connections.season_test' => [
             'driver' => 'mysql', 'host' => '127.0.0.1', 'port' => $port,
             'database' => $this->database, 'username' => $user, 'password' => $password,
             'charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci', 'prefix' => '',
+            'options' => [PDO::ATTR_TIMEOUT => 5],
         ]]);
+
+        $this->parentDatabaseOperation('configure fixture session limits', function () {
+            DB::statement('SET SESSION max_statement_time = 10');
+            DB::statement('SET SESSION lock_wait_timeout = 5');
+            DB::statement('SET SESSION innodb_lock_wait_timeout = 5');
+        });
 
         // Minimal synthetic schema for the actual SQL used by finalization and its helpers.
         foreach ([
@@ -63,24 +78,46 @@ abstract class DisposableSeasonDatabase extends TestCase
             'CREATE TABLE user_titles (user_id INT, title_id INT, PRIMARY KEY (user_id, title_id)) ENGINE=InnoDB',
             'CREATE TABLE notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, type VARCHAR(40), title VARCHAR(255), message TEXT, related_id INT NULL, related_type VARCHAR(40) NULL) ENGINE=InnoDB',
         ] as $sql) {
-            DB::statement($sql);
+            $this->parentDatabaseOperation('create fixture table', fn () => DB::statement($sql));
         }
-        DB::statement('ALTER TABLE users ADD username VARCHAR(30) NULL');
-        DB::statement('SET SESSION innodb_lock_wait_timeout = 5');
+        $this->parentDatabaseOperation('add fixture username column', fn () => DB::statement('ALTER TABLE users ADD username VARCHAR(30) NULL'));
         foreach (range(13, 18) as $id) {
-            DB::table('titles')->insert(['id' => $id, 'name' => 'Synthetic title '.$id]);
+            $this->parentDatabaseOperation('seed fixture title', fn () => DB::table('titles')->insert(['id' => $id, 'name' => 'Synthetic title '.$id]));
         }
     }
 
     protected function tearDown(): void
     {
-        try {
-            if ($this->database !== null) {
+        if ($this->database !== null) {
+            try {
                 DB::disconnect('season_test');
-                $this->admin->exec("DROP DATABASE `{$this->database}`");
+            } catch (Throwable $error) {
+                $this->cleanupErrors[] = 'Disconnect fixture connection failed ('.$error::class.').';
             }
-        } finally {
+            try {
+                $this->parentDatabaseOperation('drop disposable database '.$this->database, fn () => $this->admin->exec("DROP DATABASE `{$this->database}`"));
+            } catch (Throwable $error) {
+                $this->cleanupErrors[] = $error->getMessage();
+            }
+        }
+        $this->admin = null;
+        try {
             parent::tearDown();
+        } catch (Throwable $error) {
+            $this->cleanupErrors[] = 'Laravel teardown failed ('.$error::class.').';
+        }
+        if ($this->cleanupErrors !== []) {
+            throw new RuntimeException("Disposable test cleanup failed; remove the test container after saving diagnostics:\n".implode("\n", $this->cleanupErrors));
+        }
+    }
+
+    protected function parentDatabaseOperation(string $label, callable $operation): mixed
+    {
+        try {
+            return $operation();
+        } catch (Throwable $error) {
+            // Identify the operation and driver code without printing credentials or SQL.
+            throw new RuntimeException('Parent MariaDB operation failed or timed out: '.$label.' ('.$error::class.', code '.$error->getCode().').');
         }
     }
 

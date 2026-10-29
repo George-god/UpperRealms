@@ -35,6 +35,23 @@ timeouts, 10-second statement limits, and 5-second InnoDB lock-wait limits. Pare
 barrier/lock observation waits are bounded at 4 seconds; a slow or misconfigured VM
 can fail these limits and must be diagnosed as a harness/environment issue.
 
+Both parent PDO sessions (administrative and fixture) use a 5-second connection
+timeout, a 10-second MariaDB statement limit, a 5-second InnoDB lock-wait limit,
+and a 5-second metadata-lock wait limit (`lock_wait_timeout`). These are installed
+before database creation or fixture DDL. Administrative lock-observation queries
+and DROP DATABASE use the limited administrative session. The polling deadline is
+checked between queries, so a query already in flight may exceed that deadline up
+to its server-side limit. PDO's mysql connection timeout is not a universal socket
+read deadline, and MariaDB statement interruption does not cover every DDL/server
+failure. The external **180-second overall test-runner timeout**, followed by a
+15-second kill grace period, is the final bound for both suites together. It must
+be used even when all server-side limits are configured.
+
+Parent database failures identify the operation and driver code. Cleanup attempts
+worker, barrier-file, database, and Laravel teardown and reports accumulated errors
+instead of silently discarding them. A cleanup failure means the run is not clean,
+even if test assertions passed; destroy the disposable container after diagnosis.
+
 The worker pins REPEATABLE READ. The expiry test advances individual MariaDB session
 clocks instead of waiting for wall time; it characterizes an operation spanning
 expiry, not multi-host clock drift. The minimal fixture cannot establish full-schema
@@ -51,14 +68,27 @@ MariaDB fixture/workers. Do not forward the test port to any other database serv
 
 Run on `upperrealms-dev` with Docker, Git, Composer, PHP 8.3 CLI, pdo_mysql,
 pdo_sqlite, mbstring, XML, and proc_open available. Use a separate checkout with no
-game `.env`, credentials, or cached configuration:
+game `.env`, credentials, or cached configuration. First set `REVIEWED_COMMIT` to
+the exact 40-character SHA approved for execution. The originally reviewed commit
+was `d6a2c18b5fab18e60559e2638c4cfccd276d3227`; it does **not** contain this follow-up.
+After the follow-up is committed, substitute its SHA from the delivery report:
+`export REVIEWED_COMMIT=<new-follow-up-commit-sha>`. Do not resolve the moving branch
+tip as the expected SHA. A commit cannot embed its own SHA; this explicit input
+avoids that circularity and prevents accidentally testing the older revision.
 
 ```bash
 set -euo pipefail
+command -v timeout >/dev/null || { echo 'GNU timeout is required.' >&2; exit 1; }
+reviewed_commit=${REVIEWED_COMMIT:?Set the exact approved follow-up commit SHA first}
+[[ "$reviewed_commit" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected a full lowercase commit SHA.' >&2; exit 1; }
 qa_dir=$(mktemp -d /tmp/upperrealms-phase2b.XXXXXXXX)
-git clone --single-branch --branch feature/season-concurrency-tests-phase-2b \
+git clone --no-checkout --single-branch --branch feature/season-concurrency-tests-phase-2b \
   https://github.com/George-god/UpperRealms.git "$qa_dir/repo"
 cd "$qa_dir/repo"
+git checkout --detach "$reviewed_commit"
+[[ "$(git rev-parse HEAD)" == "$reviewed_commit" ]] || { echo 'Commit mismatch.' >&2; exit 1; }
+[[ -z "$(git status --porcelain)" ]] || { echo 'Checkout is not clean.' >&2; exit 1; }
+# Verification must succeed before dependencies or tests execute.
 composer install --no-interaction --prefer-dist --no-scripts
 
 container=upperrealms-season-phase2b
@@ -72,7 +102,19 @@ docker run --detach --name "$container" \
   --tmpfs /var/lib/mysql:rw \
   --env MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
   --env MARIADB_ROOT_HOST=% mariadb:11.4
-trap 'docker rm --force --volumes upperrealms-season-phase2b >/dev/null' EXIT
+cleanup() {
+  status=$?
+  trap - EXIT
+  if ! timeout --signal=TERM --kill-after=5s 20s \
+    docker rm --force --volumes upperrealms-season-phase2b; then
+    echo 'ERROR: disposable-container cleanup failed or timed out; inspect and remove it manually.' >&2
+    status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 for attempt in $(seq 1 60); do
   if docker exec "$container" healthcheck.sh --connect --innodb_initialized; then
     break
@@ -88,12 +130,21 @@ export CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync
 export SEASON_TEST_MARIADB=1 SEASON_TEST_DISPOSABLE=1
 export SEASON_TEST_PORT=33307 SEASON_TEST_USER=root SEASON_TEST_PASSWORD=''
 
-php vendor/bin/phpunit --filter 'SeasonProcessingTest|SeasonConcurrencyTest'
-php vendor/bin/phpunit --filter 'ProcessSeasonsCommandTest|RememberTokenMigrationTest'
+status=0
+timeout --signal=TERM --kill-after=15s 180s bash -c \
+  'php vendor/bin/phpunit --filter "SeasonProcessingTest|SeasonConcurrencyTest" &&
+   php vendor/bin/phpunit --filter "ProcessSeasonsCommandTest|RememberTokenMigrationTest"' || status=$?
+if [[ "$status" == 124 || "$status" == 137 ]]; then
+  echo 'ERROR: overall test-runner timeout/kill; results are incomplete, not an application-race finding.' >&2
+fi
+[[ "$status" == 0 ]] || exit "$status"
 printf 'Isolated checkout: %s\n' "$qa_dir/repo"
 ```
 
-`set -e` stops on test failure; the EXIT trap still removes the test container.
+GNU coreutils `timeout` is required (available on Ubuntu 24.04). The 180-second
+budget covers both test commands, not dependency installation/container startup.
+`set -e` stops on failure; the EXIT trap still attempts bounded container removal,
+preserves test failure status, and turns cleanup failure into a nonzero result.
 The test account needs CREATE/DROP DATABASE, TRIGGER and PROCESS privileges in this
 disposable instance. Do not grant these privileges to the application's normal user.
 Do not run `game:process-seasons` manually as part of these instructions.
@@ -109,7 +160,7 @@ its `upperrealms.test=season-phase2b` label, then remove only that container:
 ```bash
 docker inspect --format '{{ index .Config.Labels "upperrealms.test" }}' upperrealms-season-phase2b
 # Expected output: season-phase2b
-docker rm --force --volumes upperrealms-season-phase2b
+timeout --signal=TERM --kill-after=5s 20s docker rm --force --volumes upperrealms-season-phase2b
 ```
 
 Do not use a global database wipe or Docker prune. The temporary source checkout
