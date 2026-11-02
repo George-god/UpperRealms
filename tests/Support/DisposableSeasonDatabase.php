@@ -52,6 +52,7 @@ abstract class DisposableSeasonDatabase extends TestCase
             $this->admin->exec('SET SESSION lock_wait_timeout = 5');
             $this->admin->exec('SET SESSION innodb_lock_wait_timeout = 5');
         });
+        $this->verifyDisposableServer($this->admin);
         $database = 'upperrealms_season_test_'.bin2hex(random_bytes(8));
         $this->parentDatabaseOperation('create disposable database', fn () => $this->admin->exec("CREATE DATABASE `{$database}`"));
         // Teardown only owns a schema after CREATE succeeded.
@@ -119,6 +120,12 @@ abstract class DisposableSeasonDatabase extends TestCase
             // Identify the operation and driver code without printing credentials or SQL.
             throw new RuntimeException('Parent MariaDB operation failed or timed out: '.$label.' ('.$error::class.', code '.$error->getCode().').');
         }
+    }
+
+    /** Additional suites may require an independently provisioned disposable-server marker. */
+    protected function verifyDisposableServer(PDO $admin): void
+    {
+        // Existing lifecycle suites keep their original explicit opt-in guards.
     }
 
     protected function season(string $offset, string $status = 'active'): int
