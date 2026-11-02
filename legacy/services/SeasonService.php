@@ -3,10 +3,15 @@ declare(strict_types=1);
 
 namespace Game\Service;
 
+require_once dirname(__DIR__, 2).'/app/Support/SeasonLifecycleLock.php';
+require_once dirname(__DIR__, 2).'/app/Support/SeasonConnectionDisposer.php';
 require_once __DIR__ . '/TitleService.php';
 require_once __DIR__ . '/NotificationService.php';
 
 use Game\Config\Database;
+use App\Support\SeasonLifecycleLock;
+use App\Support\SeasonConnectionDisposer;
+use App\Support\SeasonLifecycleLockException;
 use PDO;
 use PDOException;
 
@@ -224,53 +229,99 @@ class SeasonService
      */
     public function processEndedSeasons(): array
     {
+        $processed = 0;
+        $detail = [];
+        $committed = false;
+        $stage = 'connection';
         try {
             $db = Database::getConnection();
-        } catch (\Throwable $e) {
-            return ['ok' => false, 'processed' => 0, 'detail' => [], 'error' => $e->getMessage()];
-        }
+            $stage = 'lock';
+            SeasonLifecycleLock::run($db, function () use ($db, &$processed, &$detail, &$committed, &$stage): void {
+                try {
+                    $stage = 'finalization';
+                    if (! $db->beginTransaction()) {
+                        throw new \RuntimeException('Lifecycle transaction could not begin.');
+                    }
+                    $stmt = $db->prepare("
+                        SELECT id, name, slug, weight_pvp, weight_boss, weight_cultivation, weight_sect
+                        FROM seasons
+                        WHERE status = 'active' AND ends_at < NOW()
+                        ORDER BY id ASC
+                        FOR UPDATE
+                    ");
+                    $stmt->execute();
+                    $ended = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        $detail = [];
-        $processed = 0;
+                    foreach ($ended as $season) {
+                        $sid = (int)$season['id'];
+                        $this->assignAllRanks($db, $sid);
+                        $rewards = $this->distributeRewardsAndTitles($db, $sid, $season);
+                        $db->prepare("UPDATE seasons SET status = 'ended' WHERE id = ?")->execute([$sid]);
+                        $detail[] = ['season_id' => $sid, 'name' => $season['name'], 'rewards' => $rewards];
+                        $processed++;
+                    }
 
-        try {
-            $db->beginTransaction();
-
-            $stmt = $db->prepare("
-                SELECT id, name, slug, weight_pvp, weight_boss, weight_cultivation, weight_sect
-                FROM seasons
-                WHERE status = 'active' AND ends_at < NOW()
-                ORDER BY id ASC
-                FOR UPDATE
-            ");
-            $stmt->execute();
-            $ended = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-            foreach ($ended as $season) {
-                $sid = (int)$season['id'];
-                $this->assignAllRanks($db, $sid);
-                $rewards = $this->distributeRewardsAndTitles($db, $sid, $season);
-                $db->prepare("UPDATE seasons SET status = 'ended' WHERE id = ?")->execute([$sid]);
-                $detail[] = ['season_id' => $sid, 'name' => $season['name'], 'rewards' => $rewards];
-                $processed++;
+                    $stage = 'commit';
+                    if (! $db->commit()) {
+                        throw new \RuntimeException('Lifecycle commit was not acknowledged.');
+                    }
+                    $committed = true;
+                    $stage = 'replacement';
+                    $this->ensureActiveSeasonExistsLocked($db);
+                    $stage = 'release';
+                } catch (\Throwable $error) {
+                    if (! $committed) {
+                        try {
+                            if ($db->inTransaction()) {
+                                if (! $db->rollBack() || $db->inTransaction()) {
+                                    throw new \RuntimeException('Rollback outcome is unresolved.');
+                                }
+                            }
+                        } catch (\Throwable $rollbackError) {
+                            $stage = 'rollback';
+                            SeasonLifecycleLock::quarantine($db);
+                            throw new SeasonLifecycleLockException('rollback_failed', $error, true, ['rollback' => $rollbackError]);
+                        }
+                    }
+                    if ($stage === 'commit') {
+                        SeasonLifecycleLock::quarantine($db);
+                        throw new SeasonLifecycleLockException('commit_uncertain', $error, true);
+                    }
+                    throw $error;
+                }
+            });
+        } catch (\Throwable $error) {
+            $reason = $error instanceof SeasonLifecycleLockException ? $error->reason : $stage.'_failed';
+            $unsafe = ($error instanceof SeasonLifecycleLockException && $error->discardConnection)
+                || (isset($db) && SeasonLifecycleLock::isUnsafe($db));
+            $discarded = false;
+            $cleanup = $error instanceof SeasonLifecycleLockException ? array_keys($error->cleanupFailures) : [];
+            if ($unsafe && isset($db)) {
+                try {
+                    SeasonConnectionDisposer::discard($db);
+                    $discarded = true;
+                } catch (\Throwable) {
+                    $cleanup[] = 'connection_disposal';
+                }
             }
-
-            $db->commit();
-        } catch (\Throwable $e) {
-            if (isset($db) && $db->inTransaction()) {
-                $db->rollBack();
-            }
-            error_log('SeasonService::processEndedSeasons ' . $e->getMessage());
-            return ['ok' => false, 'processed' => 0, 'detail' => [], 'error' => $e->getMessage()];
+            error_log('Season lifecycle failed: '.$reason.' ('.$error::class.', code '.$error->getCode().').');
+            return [
+                'ok' => false,
+                'status' => $unsafe || in_array($stage, ['commit', 'release', 'rollback'], true) ? 'recovery_required' : ($committed ? 'partial' : 'failed'),
+                'finalization_committed' => in_array($stage, ['commit', 'rollback'], true) ? null : $committed,
+                'processed' => in_array($stage, ['commit', 'rollback'], true) ? null : ($committed ? $processed : 0),
+                'connection_discard_required' => $unsafe,
+                'connection_detached' => $discarded,
+                'session_termination_confirmed' => false,
+                'cleanup_failures' => $cleanup,
+                'failure_diagnostics' => $error instanceof SeasonLifecycleLockException ? $error->safeDiagnostics() : ['causes' => [['type' => $error::class, 'code' => (string) $error->getCode()]], 'cleanup' => []],
+                'detail' => $committed ? $detail : [],
+                'error_code' => $reason,
+                'error' => 'Season lifecycle operation failed; inspect server diagnostics before retrying.',
+            ];
         }
 
-        try {
-            $this->ensureActiveSeasonExists();
-        } catch (\Throwable $e) {
-            error_log('SeasonService::ensureActiveSeasonExists ' . $e->getMessage());
-        }
-
-        return ['ok' => true, 'processed' => $processed, 'detail' => $detail];
+        return ['ok' => true, 'status' => 'complete', 'finalization_committed' => true, 'processed' => $processed, 'detail' => $detail];
     }
 
     public function getActiveSeason(): ?array
@@ -305,23 +356,36 @@ class SeasonService
      */
     public function ensureActiveSeasonExists(): void
     {
+        $db = Database::getConnection();
         try {
-            $db = Database::getConnection();
-            $stmt = $db->prepare('SELECT id FROM seasons WHERE status = ? AND ends_at > NOW() LIMIT 1');
-            $stmt->execute(['active']);
-            if ($stmt->fetch()) {
-                return;
+            SeasonLifecycleLock::run($db, fn () => $this->ensureActiveSeasonExistsLocked($db));
+        } catch (\Throwable $error) {
+            if (SeasonLifecycleLock::isUnsafe($db)) {
+                try {
+                    SeasonConnectionDisposer::discard($db);
+                } catch (\Throwable $disposalError) {
+                    throw new SeasonLifecycleLockException('connection_disposal_failed', $error, true, ['disposal' => $disposalError]);
+                }
             }
-            $name = 'Season ' . gmdate('Y-m-d');
-            $slug = 'season-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(3));
-            $ins = $db->prepare("
-                INSERT INTO seasons (name, slug, starts_at, ends_at, status, weight_pvp, weight_boss, weight_cultivation, weight_sect)
-                VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 28 DAY), 'active', 1.000000, 0.010000, 1.000000, 5.000000)
-            ");
-            $ins->execute([$name, $slug]);
-        } catch (\Throwable $e) {
-            error_log('SeasonService::ensureActiveSeasonExists ' . $e->getMessage());
+            throw $error;
         }
+    }
+
+    /** Caller owns the lifecycle lock on this exact PDO; never reacquire here. */
+    private function ensureActiveSeasonExistsLocked(PDO $db): void
+    {
+        $stmt = $db->prepare('SELECT id FROM seasons WHERE status = ? AND ends_at > NOW() LIMIT 1');
+        $stmt->execute(['active']);
+        if ($stmt->fetch()) {
+            return;
+        }
+        $name = 'Season ' . gmdate('Y-m-d');
+        $slug = 'season-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(3));
+        $ins = $db->prepare("
+            INSERT INTO seasons (name, slug, starts_at, ends_at, status, weight_pvp, weight_boss, weight_cultivation, weight_sect)
+            VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 28 DAY), 'active', 1.000000, 0.010000, 1.000000, 5.000000)
+        ");
+        $ins->execute([$name, $slug]);
     }
 
     private function ensureRow(PDO $db, int $seasonId, int $userId): void

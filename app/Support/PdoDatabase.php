@@ -15,6 +15,10 @@ final class PdoDatabase
     public static function connection(): PDO
     {
         $pdo = DB::connection()->getPdo();
+        if ($pdo instanceof PDO && SeasonLifecycleLock::isUnsafe($pdo)) {
+            SeasonConnectionDisposer::discard($pdo);
+            throw new SeasonLifecycleLockException('unsafe_connection', null, true);
+        }
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
         return $pdo;
