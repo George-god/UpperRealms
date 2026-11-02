@@ -4,11 +4,13 @@ declare(strict_types=1);
 namespace Game\Service;
 
 require_once dirname(__DIR__, 2).'/app/Support/SeasonLifecycleLock.php';
+require_once dirname(__DIR__, 2).'/app/Support/SeasonConnectionDisposer.php';
 require_once __DIR__ . '/TitleService.php';
 require_once __DIR__ . '/NotificationService.php';
 
 use Game\Config\Database;
 use App\Support\SeasonLifecycleLock;
+use App\Support\SeasonConnectionDisposer;
 use App\Support\SeasonLifecycleLockException;
 use PDO;
 use PDOException;
@@ -271,24 +273,48 @@ class SeasonService
                     if (! $committed) {
                         try {
                             if ($db->inTransaction()) {
-                                $db->rollBack();
+                                if (! $db->rollBack() || $db->inTransaction()) {
+                                    throw new \RuntimeException('Rollback outcome is unresolved.');
+                                }
                             }
                         } catch (\Throwable $rollbackError) {
                             $stage = 'rollback';
-                            error_log('Season rollback failed ('.$rollbackError::class.').');
+                            SeasonLifecycleLock::quarantine($db);
+                            throw new SeasonLifecycleLockException('rollback_failed', $error, true, ['rollback' => $rollbackError]);
                         }
+                    }
+                    if ($stage === 'commit') {
+                        SeasonLifecycleLock::quarantine($db);
+                        throw new SeasonLifecycleLockException('commit_uncertain', $error, true);
                     }
                     throw $error;
                 }
             });
         } catch (\Throwable $error) {
             $reason = $error instanceof SeasonLifecycleLockException ? $error->reason : $stage.'_failed';
+            $unsafe = ($error instanceof SeasonLifecycleLockException && $error->discardConnection)
+                || (isset($db) && SeasonLifecycleLock::isUnsafe($db));
+            $discarded = false;
+            $cleanup = $error instanceof SeasonLifecycleLockException ? array_keys($error->cleanupFailures) : [];
+            if ($unsafe && isset($db)) {
+                try {
+                    SeasonConnectionDisposer::discard($db);
+                    $discarded = true;
+                } catch (\Throwable) {
+                    $cleanup[] = 'connection_disposal';
+                }
+            }
             error_log('Season lifecycle failed: '.$reason.' ('.$error::class.', code '.$error->getCode().').');
             return [
                 'ok' => false,
-                'status' => in_array($stage, ['commit', 'release', 'rollback'], true) ? 'recovery_required' : ($committed ? 'partial' : 'failed'),
+                'status' => $unsafe || in_array($stage, ['commit', 'release', 'rollback'], true) ? 'recovery_required' : ($committed ? 'partial' : 'failed'),
                 'finalization_committed' => in_array($stage, ['commit', 'rollback'], true) ? null : $committed,
-                'processed' => $committed ? $processed : 0,
+                'processed' => in_array($stage, ['commit', 'rollback'], true) ? null : ($committed ? $processed : 0),
+                'connection_discard_required' => $unsafe,
+                'connection_detached' => $discarded,
+                'session_termination_confirmed' => false,
+                'cleanup_failures' => $cleanup,
+                'failure_diagnostics' => $error instanceof SeasonLifecycleLockException ? $error->safeDiagnostics() : ['causes' => [['type' => $error::class, 'code' => (string) $error->getCode()]], 'cleanup' => []],
                 'detail' => $committed ? $detail : [],
                 'error_code' => $reason,
                 'error' => 'Season lifecycle operation failed; inspect server diagnostics before retrying.',
@@ -331,7 +357,18 @@ class SeasonService
     public function ensureActiveSeasonExists(): void
     {
         $db = Database::getConnection();
-        SeasonLifecycleLock::run($db, fn () => $this->ensureActiveSeasonExistsLocked($db));
+        try {
+            SeasonLifecycleLock::run($db, fn () => $this->ensureActiveSeasonExistsLocked($db));
+        } catch (\Throwable $error) {
+            if (SeasonLifecycleLock::isUnsafe($db)) {
+                try {
+                    SeasonConnectionDisposer::discard($db);
+                } catch (\Throwable $disposalError) {
+                    throw new SeasonLifecycleLockException('connection_disposal_failed', $error, true, ['disposal' => $disposalError]);
+                }
+            }
+            throw $error;
+        }
     }
 
     /** Caller owns the lifecycle lock on this exact PDO; never reacquire here. */

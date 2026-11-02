@@ -66,6 +66,12 @@ class Database
      */
     public static function getConnection(): PDO
     {
+        if (self::$instance !== null && class_exists(\App\Support\SeasonLifecycleLock::class, false)
+            && \App\Support\SeasonLifecycleLock::isUnsafe(self::$instance)) {
+            require_once dirname(__DIR__, 2).'/app/Support/SeasonConnectionDisposer.php';
+            \App\Support\SeasonConnectionDisposer::discard(self::$instance);
+            throw new \App\Support\SeasonLifecycleLockException('unsafe_connection', null, true);
+        }
         if (self::$instance === null) {
             try {
                 // Use default config if not set
@@ -145,6 +151,14 @@ class Database
     public static function closeConnection(): void
     {
         self::$instance = null;
+    }
+
+    /** Invalidate only the exact unsafe lifecycle session, without opening another one. */
+    public static function discardConnection(PDO $pdo): void
+    {
+        if (self::$instance === $pdo) {
+            self::$instance = null;
+        }
     }
 
     /**

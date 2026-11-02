@@ -11,8 +11,11 @@ use RuntimeException;
 /** Pauses real database operations at deterministic interleaving boundaries. */
 final class SeasonBarrierPdo extends PDO
 {
+    private string $fault;
+
     public function __construct(array $config)
     {
+        $this->fault = $config['fault'] ?? '';
         parent::__construct(
             "mysql:host=127.0.0.1;port={$config['port']};dbname={$config['database']};charset=utf8mb4",
             $config['username'], $config['password'],
@@ -27,6 +30,29 @@ final class SeasonBarrierPdo extends PDO
         }
         file_put_contents($config['directory'].'/'.$config['name'].'.connection', (string) $this->query('SELECT CONNECTION_ID()')->fetchColumn());
     }
+
+    public function commit(): bool
+    {
+        if ($this->fault === 'commit_before') {
+            throw new \PDOException('Synthetic failure before COMMIT.');
+        }
+        $result = parent::commit();
+        if ($this->fault === 'commit_after') {
+            throw new \PDOException('Synthetic acknowledgement loss AFTER real COMMIT.');
+        }
+        return $result;
+    }
+
+    public function rollBack(): bool
+    {
+        if ($this->fault === 'rollback_false') {
+            return false;
+        }
+        if ($this->fault === 'rollback_throw') {
+            throw new \PDOException('Synthetic rollback failure.');
+        }
+        return parent::rollBack();
+    }
 }
 
 final class SeasonBarrierStatement extends PDOStatement
@@ -37,11 +63,33 @@ final class SeasonBarrierStatement extends PDOStatement
 
     public function execute(?array $params = null): bool
     {
+        $fault = $this->config['fault'] ?? '';
+        if ($fault === 'replacement_release' && str_contains($this->queryString, 'INSERT INTO seasons')) {
+            throw new \PDOException('Synthetic replacement failure.');
+        }
+        if (in_array($fault, ['rollback_false', 'rollback_throw'], true) && str_contains($this->queryString, 'UPDATE users SET gold')) {
+            throw new \PDOException('Synthetic original finalization failure.');
+        }
+        if ($fault === 'replacement_release' && str_contains($this->queryString, 'RELEASE_LOCK')) {
+            return true; // Keep the real session lock held, simulating a failed release.
+        }
         if (str_contains($this->queryString, 'FOR UPDATE') || str_contains($this->queryString, 'GET_LOCK(')) {
             file_put_contents($this->config['directory'].'/'.$this->config['name'].'.attempt', '1');
         }
 
-        return parent::execute($params);
+        $result = parent::execute($params);
+        if ($fault === 'acquire_after' && str_contains($this->queryString, 'GET_LOCK(')) {
+            throw new \PDOException('Synthetic acknowledgement loss AFTER real GET_LOCK.');
+        }
+        return $result;
+    }
+
+    public function fetchColumn(int $column = 0): mixed
+    {
+        if (($this->config['fault'] ?? '') === 'replacement_release' && str_contains($this->queryString, 'RELEASE_LOCK')) {
+            return 0;
+        }
+        return parent::fetchColumn($column);
     }
 
     public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array

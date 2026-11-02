@@ -51,7 +51,9 @@ class SeasonLifecycleLockTest extends TestCase
                 $this->fail('Release failure ignored');
             } catch (RuntimeException $error) {
                 if ($throwOriginal) {
-                    $this->assertSame($original, $error);
+                    $this->assertSame($original, $error->getPrevious());
+                    $this->assertSame('operation_and_release_failed', $error->reason);
+                    $this->assertArrayHasKey('release', $error->cleanupFailures);
                 } else {
                     $this->assertSame('release_failed', $error->reason);
                 }
@@ -60,7 +62,7 @@ class SeasonLifecycleLockTest extends TestCase
             try {
                 SeasonLifecycleLock::run($db, fn () => $this->fail('Poisoned connection reused'));
             } catch (SeasonLifecycleLockException $error) {
-                $this->assertSame('invalid_connection_state', $error->reason);
+                $this->assertSame('unsafe_connection', $error->reason);
             }
         }
     }
@@ -88,6 +90,21 @@ class SeasonLifecycleLockTest extends TestCase
         SeasonLifecycleLock::run($db, fn () => $this->fail('Transaction accepted'));
     }
 
+    public function test_acquisition_exception_quarantines_without_executing_operation(): void
+    {
+        $db = new LockProtocolPdo;
+        $db->throwAcquire = true;
+        try {
+            SeasonLifecycleLock::run($db, fn () => $this->fail('Unacknowledged acquisition permitted mutation'));
+            $this->fail('Acquisition uncertainty ignored');
+        } catch (SeasonLifecycleLockException $error) {
+            $this->assertSame('acquisition_uncertain', $error->reason);
+            $this->assertTrue($error->discardConnection);
+            $this->assertInstanceOf(RuntimeException::class, $error->getPrevious());
+            $this->assertTrue(SeasonLifecycleLock::isUnsafe($db));
+        }
+    }
+
     public function test_connection_change_cannot_be_reported_as_success(): void
     {
         $db = new LockProtocolPdo;
@@ -104,6 +121,7 @@ final class LockProtocolPdo extends PDO
     public int $releases = 0;
     public bool $transaction = false;
     public int $connectionId = 123;
+    public bool $throwAcquire = false;
     public function __construct() {}
     public function inTransaction(): bool { return $this->transaction; }
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
@@ -116,13 +134,17 @@ final class LockProtocolPdo extends PDO
             $this->releases++;
             return new LockProtocolStatement($this->release);
         }
-        return new LockProtocolStatement(str_contains($query, 'IS_USED_LOCK') ? null : $this->acquisition);
+        return new LockProtocolStatement(str_contains($query, 'IS_USED_LOCK') ? null : $this->acquisition, $this->throwAcquire && str_contains($query, 'GET_LOCK'));
     }
 }
 
 final class LockProtocolStatement extends PDOStatement
 {
-    public function __construct(private mixed $value) {}
-    public function execute(?array $params = null): bool { return true; }
+    public function __construct(private mixed $value, private bool $throw = false) {}
+    public function execute(?array $params = null): bool
+    {
+        if ($this->throw) { throw new RuntimeException('Synthetic acquisition acknowledgement failure'); }
+        return true;
+    }
     public function fetchColumn(int $column = 0): mixed { return $this->value; }
 }

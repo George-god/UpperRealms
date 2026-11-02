@@ -59,4 +59,24 @@ $result = match ($input['operation']) {
     'score' => (function () use ($service) { $service->onPvpWin(1); return ['score_call_completed' => true]; })(),
     default => throw new RuntimeException('Unknown test operation.'),
 };
+if (($input['fault'] ?? '') !== '') {
+    $lockName = \App\Support\SeasonLifecycleLock::name($pdo);
+    $lockOwner = $pdo->prepare('SELECT IS_USED_LOCK(?)');
+    $lockOwner->execute([$lockName]);
+    $stillOwnsLock = (int) $lockOwner->fetchColumn() === (int) $pdo->query('SELECT CONNECTION_ID()')->fetchColumn();
+    $retained = false;
+    foreach (app('db')->getConnections() as $connection) {
+        $retained = $retained || $connection->getRawPdo() === $pdo || $connection->getRawReadPdo() === $pdo;
+    }
+    $legacyRetained = false;
+    if (class_exists(Game\Config\Database::class, false)) {
+        $legacyRetained = (new ReflectionProperty(Game\Config\Database::class, 'instance'))->getValue() === $pdo;
+    }
+    $result['test_probe'] = [
+        'laravel_retained' => $retained, 'legacy_retained' => $legacyRetained,
+        'retained_reference_unsafe' => \App\Support\SeasonLifecycleLock::isUnsafe($pdo),
+        'transaction_still_open' => $pdo->inTransaction(),
+        'session_still_owns_lock' => $stillOwnsLock,
+    ];
+}
 echo json_encode($result, JSON_THROW_ON_ERROR);

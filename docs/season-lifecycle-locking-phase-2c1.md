@@ -1,115 +1,118 @@
-# Phase 2C-1: shared season lifecycle locking
+# Phase 2C-1 corrective pass: lifecycle uncertainty and disposal
 
-Base: development a68cb018e9b34c842b3397cbaaebbd031d297507. Test infrastructure
-was selectively imported from reviewed Phase 2B 6e746689c1b8029017f27b5a6524ac7692c273bc.
-No migrations, HTTP endpoint, auth, CSRF, scoring, gameplay transactions or scheduling changes.
+Branch: feature/season-lifecycle-locking-phase-2c1. This pass follows reviewed
+1a8c49772407a55dd0bde6cce48f718a0c6d9f5d. Base lifecycle work remains based on
+development a68cb018e9b34c842b3397cbaaebbd031d297507. No scoring, reward, ranking,
+gameplay, endpoint, authentication, schema/migration or scheduling changes.
 
-## Deployment assumption (not verified on production)
+## Shared database assumption
 
-Within Laravel, legacy/core/bootstrap.php copies the default MySQL/MariaDB connection
-configuration into the legacy singleton. Standalone legacy execution instead reads
-DB_*/MYSQL_* environment settings. Operators must verify the same authoritative
-server and actual database/schema, not just matching database names. Advisory locks
-are single-server cooperative locks, not a multi-primary distributed mutex. Confirm
-no connection-switching proxy or statement-based replication incompatibility. This
-implementation does not access production to establish those facts.
+Legacy execution under Laravel copies its configured MySQL/MariaDB connection.
+Standalone legacy uses DB_*/MYSQL_* environment settings. Operators must verify both
+use one authoritative server and the exact same schema. Advisory locks do not
+coordinate separate primary servers. No production verification was performed.
 
-## Protocol and ownership
+## Lock and failure contract
 
-One PDO-only helper, app/Support/SeasonLifecycleLock.php, is autoloaded by Laravel
-and explicitly included by the legacy service. A name derived from SELECT DATABASE()
-is identical on both connections to the same schema and different for test schemas.
-GET_LOCK uses a bounded five-second wait; only result 1 permits protected work.
-Result 0 is busy, NULL is acquisition_failed; PDO exceptions are database_error.
-No unlocked fallback exists. Public creation failures propagate to the caller.
+The same schema-derived advisory-lock name is used by both services on their actual
+PDO. Five-second acquisition timeout, no unlocked fallback, no recursive acquisition,
+existing transaction rejection and native PDO ownership remain. Finalization keeps
+its existing transaction and FOR UPDATE; replacement remains separate after commit
+while the advisory lock is held. No second connection is opened for the lock.
 
-Public entry points reject an existing transaction and process-local nested lock
-ownership, including a second PDO. Private already-locked creation avoids nested
-acquisition during finalization. An existing advisory lock on the same PDO is also
-rejected. The helper uses the exact PDO for acquisition/release; native PDO operations
-do not transparently reconnect. Connection identity is checked before release.
+Confirmed acquisition result 0 means busy; NULL means acquisition_failed. An exception
+during GET_LOCK execution/result acknowledgement or a missing result means
+acquisition_uncertain. Protected mutations never start in that case. The PDO is
+quarantined and detached because the server may have acquired the lock.
 
-Ordering: acquire mutex -> existing transaction and FOR UPDATE -> commit or rollback
--> replacement check/insert -> release in finally. Rollback occurs before advisory
-release. Replacement remains a separate autocommit operation, as previously. Reward
-amounts, ranking order, expiry comparisons and 28-day creation parameters are unchanged.
+SeasonLifecycleLockException retains the primary exception through getPrevious()
+and cleanup exceptions in cleanupFailures. Operation plus release failure reports
+operation_and_release_failed, not an ordinary partial failure. Original messages,
+SQL, traces and credentials are never serialized in public service results.
+failure_diagnostics contains only cause/cleanup exception types and driver codes;
+cleanup_failures identifies affected stages.
 
-Release failures are logged without SQL/credentials. They throw when there is no
-original exception, otherwise the original exception is preserved. Such a PDO is
-quarantined from future lifecycle operations and must be discarded by the host;
-terminate the request/process rather than reuse it. Session termination frees MariaDB
-advisory locks. A network partition may delay server detection; timeout never means
-permission to bypass the lock. No lease expiry or second lock connection is used.
+Rollback checks both its boolean result and that inTransaction() becomes false.
+A thrown/false/unresolved rollback preserves the primary operation failure, marks
+rollback uncertainty, and quarantines the PDO. The helper does not release the
+advisory lock while a transaction remains open: the unsafe session must be detached
+and allowed to terminate. Compound cleanup errors are not silently lost.
 
-## Results and recovery
+Results:
+- complete: acknowledged finalization and replacement, released lock; confirmed count.
+- failed: definite non-commit failure with successful cleanup, including busy.
+- partial: acknowledged commit, replacement failure, successful cleanup; confirmed
+  processed count/detail retained. Retry skips ended seasons and repairs replacement.
+- recovery_required: ambiguous commit/rollback, uncertain acquisition, unresolved
+  release or unsafe session. connection_discard_required=true identifies unsafe use.
+  finalization_committed and processed are null for ambiguous commit/rollback, and
+  detail is empty unless finalization was acknowledged. Attempted rewards are not
+  presented as persisted. Definite pre-transaction acquisition uncertainty keeps
+  finalization_committed=false and processed=0 while lock ownership is uncertain.
 
-Processing retains ok, processed, detail and error, and adds status, error_code and
-finalization_committed. Complete means the lock was released after replacement work.
-Busy/connection/acquisition/finalization failures return ok=false. Diagnostic logs
-identify lifecycle stage, exception class and SQLSTATE/code without returning raw
-exception messages to the unchanged HTTP endpoint.
+A COMMIT exception is conservatively ambiguous even if a later rollback succeeds.
+It must not cause automatic replay. A separate persisted-state inspection and a
+controlled retry are required after the original session is gone. Tests explicitly
+exercise real COMMIT followed by an injected acknowledgement exception, and an
+exception before COMMIT followed by verified rollback; these are different persisted
+outcomes even though both public outcomes conservatively require reconciliation.
 
-After an acknowledged finalization commit, replacement failure returns status=partial,
-finalization_committed=true, and the actual processed/detail values. Rewards remain
-committed. Retry under the mutex skips ended seasons and creates the missing active
-season; tests verify no duplicate currency, titles or notifications.
+## Disposal behavior and limits
 
-An exception during COMMIT returns status=recovery_required and
-finalization_committed=null, not a claim of rollback. Do not automatically replay
-rewards on ambiguous acknowledgement. On the development/disposable environment,
-inspect persisted season status, ranks, balances and notifications using a fresh
-connection after the original session is gone. Operator reconciliation is required
-if state is unclear. Release failure similarly reports recovery_required even if
-writes committed. This is not an exactly-once event ledger or automatic failover.
+SeasonConnectionDisposer detaches only matching PDO identities from all instantiated
+Laravel connections and the legacy singleton. It never calls connection getters
+that open new sessions. An empty Laravel connection is purged. With split read/write
+sessions, only the matching unsafe reference is nulled; the other healthy session
+is not disconnected/purged. A split connection with no write PDO fails closed rather
+than reconnecting during this operation. Connection accessors reject quarantined PDOs
+if a stale reference was reinstalled or detachment previously failed.
 
-Existing title/notification helper swallowing remains outside Phase 2C-1. Existing
-duplicate seasons are not deleted or repaired automatically. The public legacy
-endpoint and fallback secret remain unchanged and require a separate security task.
+connection_detached means the managed references were detached, not proof of server
+termination. session_termination_confirmed=false is intentional. PHP PDO has no
+portable force-close API for a PDO object retained elsewhere (including exception
+traces). We do NOT send KILL to a guessed or changed session ID. Such a retained
+object can keep row/advisory locks alive until all references are dropped and the
+nonpersistent session closes. Quarantine prevents reuse through the helper and
+managed accessors; PHP cannot revoke arbitrary direct calls on an externally retained
+PDO. End the request/process and reconcile uncertain transaction state before any
+retry. Persistent connections and connection-switching proxies require operational
+review; server detection of a broken network connection can be delayed.
 
-## Tests and explicit non-goals
+Services account for uncertainty before detaching connections. They do not commit
+or blindly retry an unsafe transaction as part of disposal. If detachment itself
+fails, connection_detached=false and cleanup_failures includes connection_disposal;
+the result still requires recovery. The original exception chain is preserved.
 
-Phase 1 reward/ranking assertions remain; the gold-column removal test is annotated
-as intentional and asserts finalization_failed. New protocol unit tests cover 0/NULL
-acquisition, exception release, release failure preserving the original exception,
-quarantined connections, recursion across PDOs, existing transactions and changed
-connection identity. Unit doubles test protocol contracts, not MariaDB behavior.
+## Regression tests and remaining scope
 
-Real-process MariaDB tests observe an advisory-lock wait via PROCESSLIST and
-IS_USED_LOCK. They assert one active season for Laravel/Laravel, legacy/legacy,
-Laravel/legacy creators and processor versus legacy getPageData. They cover competing
-processors, acquisition timeout without writes, release after exception, non-owner
-release rejection, terminated owner, transaction rollback and partial failure/retry.
-They use the actual service paths and native SQL, with bounded test barriers.
+Protocol unit tests verify acquisition acknowledgement exceptions, retained unsafe
+references, original versus release exceptions, and recursion. A database-free test
+uses actual Laravel DatabaseManager/Connection objects and the legacy singleton to
+verify identity-based invalidation and preservation of unrelated/split sessions.
 
-The scoring-across-expiry characterization intentionally remains an existing-bug
-expectation. Score methods and their callers are untouched. Finalization does NOT
-coordinate with seasonal scoring in this phase; Phase 2C-2 remains necessary. Fixing
-creation races must not be presented as making the entire season lifecycle safe.
+Twelve new real-MariaDB service cases (six faults times both services) inject:
+replacement plus release failure, rollback false, rollback throw, acquisition after
+real GET_LOCK, COMMIT before persistence, and acknowledgement loss AFTER real COMMIT.
+They assert error_code/status/counts, cause identities, uncertain transaction state,
+manager/singleton eviction, and that retained references may still own locks. After
+the child exits they inspect persisted balances/ranks/status and perform controlled
+retry, checking that acknowledged rewards are not duplicated. The injection lives
+only in the test PDO and never changes production SQL or schema.
 
-The original dual-empty-lookup barriers were replaced with a winner paused inside
-the mutex and a contender observed waiting for that mutex. Waiting for two empty
-lookups would deadlock under the corrected implementation. All parent, worker,
-database, barrier and external runner bounds from reviewed Phase 2B are retained.
-Minimal synthetic schema does not validate full schema import, multiple primaries,
-all crash interleavings or persisted legacy installations.
+Existing lifecycle prevention assertions, Phase 1 rewards/rankings, timeout bounds,
+opt-in and random disposable schemas remain. The scoring-across-expiry race is still
+an explicit existing-bug characterization for Phase 2C-2. The public legacy endpoint
+and fallback secret remain unchanged. Existing title/notification swallowing is
+still deferred. Duplicate historical active seasons are not automatically repaired.
 
-Creation lock contention now propagates as a lifecycle exception rather than
-returning a page with an assumed season. The existing page/controller may display
-its normal error response until retried. No HTTP response redesign is included.
+## Local validation
 
-## Validation in authoring environment
-
-PHP syntax checks and protocol unit tests can run here; MariaDB/Docker is unavailable.
-No integration success is claimed without the disposable Linux run below. Earlier
-Phase 2B VM passes do not validate these modified lifecycle tests. The three protocol
-release-failure diagnostics in the unit run are deliberate injected failures.
-
-Recorded local result: 6 protocol tests passed with 17 assertions; 16 disposable
-MariaDB cases skipped. Ten changed/new PHP files passed syntax checks. The five
-command/migration feature tests were attempted but all failed during Laravel
-bootstrap because native Windows checks report bootstrap/cache unwritable. None
-of their assertions executed. This is an environment blocker, not a passing
-regression result; all suites must be rerun on upperrealms-dev before merging.
+8 protocol/disposer unit tests passed, 31 assertions. The no-opt-in run skipped
+28 MariaDB cases; none of their assertions executed locally. PHP syntax and diff
+checks passed. MariaDB/Docker remains unavailable in the authoring environment.
+The five command/migration feature tests remain blocked by the previously observed
+native Windows Laravel bootstrap/cache writability error. Run every suite below on
+the disposable Linux container before merge; earlier Phase 2B passes are insufficient.
 
 ## Exact Linux development-VM commands
 
@@ -179,7 +182,7 @@ export SEASON_TEST_PORT=33307 SEASON_TEST_USER=root SEASON_TEST_PASSWORD=''
 
 status=0
 timeout --signal=TERM --kill-after=15s 180s bash -c \
-  'php vendor/bin/phpunit --filter "SeasonLifecycleLockTest|SeasonProcessingTest|SeasonConcurrencyTest" &&
+  'php vendor/bin/phpunit --filter "SeasonLifecycleLockTest|SeasonConnectionDisposerTest|SeasonProcessingTest|SeasonConcurrencyTest" &&
    php vendor/bin/phpunit --filter "ProcessSeasonsCommandTest|RememberTokenMigrationTest"' || status=$?
 if [[ "$status" == 124 || "$status" == 137 ]]; then
   echo 'ERROR: overall test-runner timeout/kill; results are incomplete, not an application-race finding.' >&2
@@ -214,6 +217,6 @@ Do not use a global database wipe or Docker prune. The temporary source checkout
 can be removed after saving results. Barrier directories left by an abruptly killed
 runner have the `upperrealms_barrier_` prefix and contain no credentials.
 
-Opt-in disabled: 16 MariaDB tests skip (6 original, 10 concurrency including data-provider
+Opt-in disabled: 28 MariaDB tests skip (6 original, 22 concurrency including data-provider
 cases). Connection/setup errors, missing privileges, worker exits, barrier timeouts,
 or an unobserved lock wait must not be reported as application race findings.

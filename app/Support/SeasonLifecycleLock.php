@@ -17,6 +17,17 @@ final class SeasonLifecycleLock
 
     private static ?WeakMap $poisoned = null;
 
+    public static function quarantine(PDO $db): void
+    {
+        self::$poisoned ??= new WeakMap;
+        self::$poisoned[$db] = true;
+    }
+
+    public static function isUnsafe(PDO $db): bool
+    {
+        return self::$poisoned !== null && isset(self::$poisoned[$db]);
+    }
+
     public static function name(PDO $db): string
     {
         $schema = $db->query('SELECT DATABASE()')->fetchColumn();
@@ -30,9 +41,13 @@ final class SeasonLifecycleLock
     public static function run(PDO $db, callable $operation, int $timeout = 5): mixed
     {
         self::$poisoned ??= new WeakMap;
-        if (isset(self::$poisoned[$db]) || $db->inTransaction() || $timeout < 0 || $timeout > 5) {
+        if (self::isUnsafe($db)) {
+            throw new SeasonLifecycleLockException('unsafe_connection', null, true);
+        }
+        if ($db->inTransaction() || $timeout < 0 || $timeout > 5) {
             throw new SeasonLifecycleLockException('invalid_connection_state');
         }
+        $attempted = false;
         try {
             $name = self::name($db);
             if (isset(self::$held[$name])) {
@@ -46,15 +61,22 @@ final class SeasonLifecycleLock
                 throw new SeasonLifecycleLockException('recursive_acquisition');
             }
             $acquire = $db->prepare('SELECT GET_LOCK(?, ?)');
+            $attempted = true;
             $acquire->execute([$name, $timeout]);
             $result = $acquire->fetchColumn();
+            if ($result === false) {
+                throw new \RuntimeException('Acquisition acknowledgement missing.');
+            }
             if ((string) $result !== '1') {
                 throw new SeasonLifecycleLockException((string) $result === '0' ? 'busy' : 'acquisition_failed');
             }
         } catch (SeasonLifecycleLockException $error) {
             throw $error;
         } catch (Throwable $error) {
-            throw new SeasonLifecycleLockException('database_error', $error);
+            if ($attempted) {
+                self::quarantine($db);
+            }
+            throw new SeasonLifecycleLockException($attempted ? 'acquisition_uncertain' : 'database_error', $error, $attempted);
         }
 
         self::$held[$name] = $db;
@@ -63,9 +85,15 @@ final class SeasonLifecycleLock
             return $operation();
         } catch (Throwable $error) {
             $primary = $error;
+            if ($error instanceof SeasonLifecycleLockException && $error->discardConnection) {
+                self::quarantine($db);
+            }
             throw $error;
         } finally {
             try {
+                if ($db->inTransaction()) {
+                    throw new SeasonLifecycleLockException('transaction_unresolved');
+                }
                 if ((string) $db->query('SELECT CONNECTION_ID()')->fetchColumn() !== $owner) {
                     throw new SeasonLifecycleLockException('connection_changed');
                 }
@@ -75,12 +103,15 @@ final class SeasonLifecycleLock
                     throw new SeasonLifecycleLockException('release_failed');
                 }
             } catch (Throwable $releaseError) {
-                self::$poisoned[$db] = true;
+                self::quarantine($db);
                 error_log('Season lifecycle lock release failed; discard connection ('.$releaseError::class.').');
-                if ($primary === null) {
-                    throw new SeasonLifecycleLockException('release_failed', $releaseError);
-                }
-                // Preserve the original operation exception if release also failed.
+                $failures = $primary instanceof SeasonLifecycleLockException ? $primary->cleanupFailures : [];
+                $failures['release'] = $releaseError;
+                // The original remains in the cause chain; cleanup failure is never log-only.
+                throw new SeasonLifecycleLockException(
+                    $primary === null ? 'release_failed' : 'operation_and_release_failed',
+                    $primary ?? $releaseError, true, $failures,
+                );
             } finally {
                 unset(self::$held[$name]);
             }

@@ -222,6 +222,69 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
         $this->assertSame(1, $this->activeCount());
     }
 
+    public static function lifecycleFaults(): array
+    {
+        $cases = [];
+        foreach (['laravel', 'legacy'] as $path) {
+            foreach (['replacement_release', 'rollback_false', 'rollback_throw', 'acquire_after', 'commit_before', 'commit_after'] as $fault) {
+                $cases[$path.'_'.$fault] = [$path, $fault];
+            }
+        }
+        return $cases;
+    }
+
+    #[DataProvider('lifecycleFaults')]
+    public function test_uncertain_failures_detach_connections_and_report_persisted_state(string $path, string $fault): void
+    {
+        $expired = $this->rewardFixture();
+        $result = $this->finishWorker($this->start('faulty', 'process', $path, '', null, $fault));
+        $this->assertFalse($result['ok']);
+        $this->assertSame('recovery_required', $result['status']);
+        $this->assertTrue($result['connection_discard_required']);
+        $this->assertTrue($result['connection_detached']);
+        $this->assertFalse($result['session_termination_confirmed']);
+        $this->assertFalse($result['test_probe']['laravel_retained']);
+        $this->assertFalse($result['test_probe']['legacy_retained']);
+        $this->assertTrue($result['test_probe']['retained_reference_unsafe']);
+        $this->assertSame(! str_starts_with($fault, 'commit'), $result['test_probe']['session_still_owns_lock']);
+        $this->assertContains(\PDOException::class, array_column($result['failure_diagnostics']['causes'], 'type'));
+        if ($fault === 'replacement_release') {
+            $this->assertSame('operation_and_release_failed', $result['error_code']);
+            $this->assertContains('release', $result['cleanup_failures']);
+            $this->assertTrue($result['finalization_committed']);
+            $this->assertSame(1, $result['processed']);
+            $this->assertRewardOnce();
+        } elseif ($fault === 'acquire_after') {
+            $this->assertSame('acquisition_uncertain', $result['error_code']);
+            $this->assertFalse($result['finalization_committed']);
+            $this->assertSame(0, $result['processed']);
+        } else {
+            $this->assertNull($result['finalization_committed']);
+            $this->assertNull($result['processed']);
+            $this->assertSame([], $result['detail']);
+            if (str_starts_with($fault, 'rollback')) {
+                $this->assertSame('operation_and_release_failed', $result['error_code']);
+                $this->assertContains('rollback', $result['cleanup_failures']);
+                $this->assertTrue($result['test_probe']['transaction_still_open']);
+            } else {
+                $this->assertSame('commit_uncertain', $result['error_code']);
+            }
+        }
+        // The child process has now terminated, so retained PDO references no longer keep a session alive.
+        if (in_array($fault, ['replacement_release', 'commit_after'], true)) {
+            $this->assertSame('ended', DB::table('seasons')->where('id', $expired)->value('status'));
+            $this->assertRewardOnce();
+        } else {
+            $this->assertSame('active', DB::table('seasons')->where('id', $expired)->value('status'));
+            $this->assertSame(0, (int) DB::table('users')->sum('gold'));
+        }
+        $retry = $this->finishWorker($this->start('retry', 'process', $path));
+        $this->assertTrue($retry['ok']);
+        $this->assertSame(in_array($fault, ['replacement_release', 'commit_after'], true) ? 0 : 1, $retry['processed']);
+        $this->assertSame(1, $this->activeCount());
+        $this->assertRewardOnce();
+    }
+
     private function rewardFixture(string $offset = '-1 DAY'): int
     {
         $id = $this->season($offset);
@@ -247,14 +310,14 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
         return DB::table('seasons')->where('status', 'active')->whereRaw('ends_at > NOW()')->count();
     }
 
-    private function start(string $name, string $operation, string $path = 'laravel', string $barrier = '', ?int $clock = null): Process
+    private function start(string $name, string $operation, string $path = 'laravel', string $barrier = '', ?int $clock = null, string $fault = ''): Process
     {
         if ($this->barriers === null) {
             $this->barriers = sys_get_temp_dir().'/upperrealms_barrier_'.bin2hex(random_bytes(8));
             mkdir($this->barriers, 0700);
         }
         $connection = config('database.connections.season_test');
-        $input = array_merge($connection, ['name' => $name, 'operation' => $operation, 'path' => $path, 'barrier' => $barrier, 'directory' => $this->barriers, 'clock' => $clock]);
+        $input = array_merge($connection, ['name' => $name, 'operation' => $operation, 'path' => $path, 'barrier' => $barrier, 'directory' => $this->barriers, 'clock' => $clock, 'fault' => $fault]);
         $worker = new Process([PHP_BINARY, '-d', 'error_log=', '-d', 'log_errors=1', base_path('tests/Support/season-worker.php')], base_path(), [
             'APP_ENV' => 'testing', 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => ':memory:', 'DB_URL' => '',
             'CACHE_STORE' => 'array', 'SESSION_DRIVER' => 'array', 'QUEUE_CONNECTION' => 'sync',
