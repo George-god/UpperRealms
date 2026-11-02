@@ -150,6 +150,7 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
         // PHP error_log is outside the database transaction and survives the rollback.
         $this->assertSame('finalization_failed', $result['error_code']);
         $this->assertStringContainsString('finalization_failed', $worker->getErrorOutput());
+        $this->assertStringContainsString('code 45000', $worker->getErrorOutput(), 'Must reach the injected trigger, not fail earlier in setup or reward SQL.');
         DB::unprepared('DROP TRIGGER phase2b_fail_finalization');
         $this->assertTrue($this->finishWorker($this->start('retry', 'process'))['ok']);
         $this->assertRewardOnce();
@@ -170,6 +171,7 @@ class SeasonConcurrencyTest extends DisposableSeasonDatabase
         $this->assertRewardOnce();
         $notifications = DB::table('notifications')->count();
         $this->assertStringContainsString('replacement_failed', $first->getErrorOutput());
+        $this->assertStringContainsString('code 45000', $first->getErrorOutput(), 'Must reach the injected replacement trigger.');
         $retry = $this->finishWorker($this->start('retry', 'process'));
         $this->assertFalse($retry['ok']);
         $this->assertSame('partial', $retry['status']);
