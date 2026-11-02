@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\SeasonScoringDiagnostics;
 use Tests\Support\SeasonScoringEnvironment;
 use Tests\Support\SeasonScoringPdo;
 
@@ -93,26 +94,9 @@ try {
 } catch (Throwable $error) {
     $result = ['caught_type' => $error::class, 'caught_code' => (string) $error->getCode()];
 }
-$diagnostics = is_file($input['directory'].'/diagnostics.log') ? file_get_contents($input['directory'].'/diagnostics.log') : '';
-preg_match_all('/SQLSTATE\[([A-Z0-9]+)\]/', $diagnostics, $codes);
-$unexpected = 0;
-foreach (preg_split('/\R/', trim($diagnostics)) as $line) {
-    if ($line === '') {
-        continue;
-    }
-    $message = preg_replace('/^\[[^\]]+\] /', '', $line);
-    if (($input['fault'] ?? '') !== '' && str_ends_with($message, 'Synthetic scoring fault: '.$input['fault'])) {
-        continue;
-    }
-    if ($input['operation'] === 'challenge' && in_array($message, [
-        'Battle simulation failed: There is already an active transaction',
-        'Challenge acceptance failed: There is no active transaction',
-    ], true)) {
-        continue;
-    }
-    $unexpected++;
-}
-echo json_encode(['result' => $result, 'events' => $pdo->events, 'transaction_open' => $pdo->inTransaction(),
-    'diagnostic_sqlstates' => array_values(array_unique($codes[1])),
-    'unexpected_diagnostic_count' => $unexpected,
+$diagnostics = SeasonScoringDiagnostics::fromFile(
+    $input['directory'].'/diagnostics.log', $input['operation'], $input['fault'] ?? '',
+    [$input['password'], $input['username'], (string) getenv('SEASON_TEST_INSTANCE_TOKEN'), (string) getenv('APP_KEY')]
+);
+echo json_encode([...$diagnostics, 'result' => $result, 'events' => $pdo->events, 'transaction_open' => $pdo->inTransaction(),
     'connection_id' => (int) $pdo->query('SELECT CONNECTION_ID()')->fetchColumn()], JSON_THROW_ON_ERROR);

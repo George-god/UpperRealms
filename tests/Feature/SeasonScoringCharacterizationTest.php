@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\DisposableSeasonScoringDatabase;
+use Tests\Support\SeasonScoringDiagnostics;
 
 /** Baseline observations, including defects. Passing does NOT mean the proposed protocol exists. */
 class SeasonScoringCharacterizationTest extends DisposableSeasonScoringDatabase
@@ -19,8 +20,10 @@ class SeasonScoringCharacterizationTest extends DisposableSeasonScoringDatabase
     private function runAction(string $path, string $action, array $options = []): array
     {
         $probe = $this->finishScoring($this->startScoring($path, $action, $options));
-        $this->assertSame([], $probe['diagnostic_sqlstates'], 'Unexpected SQL errors invalidate a gameplay characterization.');
-        $this->assertSame(0, $probe['unexpected_diagnostic_count'], 'Unexpected ancillary errors invalidate the fixture; do not treat swallowed failures as a pass.');
+        $context = SeasonScoringDiagnostics::failureContext($probe);
+        $this->assertSame([], $probe['diagnostic_collection_errors'], 'Diagnostic collection failed.'.$context);
+        $this->assertSame([], $probe['diagnostic_sqlstates'], 'Unexpected SQL errors invalidate a gameplay characterization.'.$context);
+        $this->assertSame(0, $probe['unexpected_diagnostic_count'], 'Unexpected ancillary errors invalidate the fixture; do not treat swallowed failures as a pass.'.$context);
 
         return $probe;
     }
@@ -243,9 +246,11 @@ class SeasonScoringCharacterizationTest extends DisposableSeasonScoringDatabase
         $this->assertSame(0, (int) DB::table('season_rankings')->value('score_cultivation'));
         $this->releaseScoringBarrier($child, 'before_category');
         $probe = $this->finishScoring($child);
-        $this->assertTrue($probe['result']['success']);
-        $this->assertSame([], $probe['diagnostic_sqlstates']);
-        $this->assertSame(0, $probe['unexpected_diagnostic_count']);
+        $context = SeasonScoringDiagnostics::failureContext($probe);
+        $this->assertSame([], $probe['diagnostic_collection_errors'], 'Diagnostic collection failed.'.$context);
+        $this->assertSame([], $probe['diagnostic_sqlstates'], $context);
+        $this->assertSame(0, $probe['unexpected_diagnostic_count'], $context);
+        $this->assertTrue($probe['result']['success'], $context);
         $this->assertGreaterThan(0, (int) DB::table('season_rankings')->value('score_cultivation'));
         $this->assertNotSame((int) DB::scalar('SELECT CONNECTION_ID()'), $probe['connection_id']);
     }
