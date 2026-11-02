@@ -320,7 +320,7 @@ class BloodlineService
             }
 
             $progress = $this->fetchProgress($db, $userId);
-            $stmt = $db->prepare('SELECT id FROM user_bloodlines WHERE user_id = ? AND is_active = 1 LIMIT 1');
+            $stmt = $db->prepare('SELECT 1 FROM user_bloodlines WHERE user_id = ? AND is_active = 1 LIMIT 1');
             $stmt->execute([$userId]);
             $hasActive = (bool)$stmt->fetch();
 
