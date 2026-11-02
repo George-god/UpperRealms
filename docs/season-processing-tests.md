@@ -1,58 +1,21 @@
-# Season processing — Phase 1
+# Season processing tests
 
-`game:process-seasons` delegates synchronously to the existing Laravel
-`SeasonService::processEndedSeasons()`. A successful service result prints a count
-and exits 0; a failed result or thrown exception prints a generic error and exits 1.
-No HTTP endpoint, schedule, reward formula, or service implementation changes are
-included. Do not run this command against a persistent game database during QA.
+Run in an isolated checkout without game credentials or cached configuration.
+Phase 2C-1 keeps the existing SeasonService reward/ranking rules and adds lifecycle
+locking. Command success reflects the service's complete result; partial lifecycle
+failure returns nonzero through the unchanged command. The HTTP endpoint is unchanged.
 
-## Default suite
-
-Use PHP 8.3 with the Composer lock-file dependencies and SQLite enabled:
+Unit protocol tests run without a database:
 
 ```sh
-composer install
-php vendor/bin/phpunit
+php vendor/bin/phpunit --filter SeasonLifecycleLockTest
 ```
 
-Use an isolated checkout with no game credentials or cached configuration.
-`phpunit.xml` selects testing, in-memory SQLite, array sessions/cache and sync queues.
-Command tests mock SeasonService and do not process game data. The migration test
-runs fresh migrations against in-memory SQLite. The later remember-token migration
-now owns that column on both the test and normal schema paths.
+The Phase 1 schema regression and command tests still use in-memory SQLite/mocks.
+The six Phase 1 MariaDB tests share the reviewed disposable fixture. Set
+SEASON_TEST_MARIADB=1 and SEASON_TEST_DISPOSABLE=1 only for a dedicated disposable
+loopback MariaDB instance on a non-3306 port. Random per-test databases are dropped
+in teardown. Never use persistent game credentials or a forwarded production port.
 
-## Optional MariaDB characterization suite
-
-MariaDB is required to test the real `FOR UPDATE`, `NOW()`, `INSERT IGNORE`, and
-`DATE_ADD` behavior. These tests must not be pointed at a normal development or
-production database. Provision a **disposable local MariaDB instance** first.
-
-Explicitly set `SEASON_TEST_MARIADB=1`, `SEASON_TEST_PORT` (default 3307),
-`SEASON_TEST_USER` (default root), and optionally `SEASON_TEST_PASSWORD` using only
-that disposable instance's credentials. Then run:
-
-```sh
-php vendor/bin/phpunit --filter SeasonProcessingTest
-```
-
-The host is fixed to 127.0.0.1. Normal DB_* settings are not used for this suite.
-Each test creates its own randomly named `upperrealms_season_test_*` database,
-loads a minimal synthetic schema, and drops only that database during teardown.
-The dedicated local account needs CREATE/DROP DATABASE permission. If a test
-process is killed, destroy the disposable MariaDB instance to remove leftovers.
-Never forward the loopback test port to another server.
-
-Coverage: expiry and equality boundary, multiple-season order, ties, all currency
-tiers, positive-score eligibility, category titles, notifications, sequential
-retries, default 28-day creation, existing active seasons, and transaction rollback.
-These are service characterization tests, not full-schema migration tests or
-multi-process concurrency tests.
-
-## Remaining work
-
-The public legacy endpoint remains enabled in Phase 1. No scheduler or command
-overlap lock is installed. Existing swallowed title/notification/season-creation
-errors remain unchanged, so command success means the existing service reported
-success; it is not an independent guarantee that every side effect completed.
-Concurrency protection, lifecycle error handling, HTTP removal, and operational
-cutover need separate Phase 2 approval.
+See [the Phase 2C-1 runbook](season-lifecycle-locking-phase-2c1.md) for exact pinned
+checkout/container commands, timeouts, cleanup, expected outcomes and recovery limits.
