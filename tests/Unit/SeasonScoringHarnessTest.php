@@ -27,6 +27,22 @@ class SeasonScoringHarnessTest extends TestCase
         }
     }
 
+    public function test_borrowed_manual_fixture_uses_authoritative_definition_after_its_dependencies(): void
+    {
+        $statements = SeasonScoringSchema::statements();
+        $index = array_search('sect_library_manuals', SeasonScoringSchema::TABLES, true);
+        $this->assertNotFalse($index);
+        $source = file_get_contents(dirname(__DIR__, 2).'/legacy/database_full.sql');
+        $this->assertSame(1, preg_match('/^CREATE TABLE IF NOT EXISTS sect_library_manuals \(\R.*?^\) ENGINE=InnoDB[^;]*;/ms', $source, $matches));
+        $this->assertSame($matches[0], $statements[$index]);
+        preg_match_all('/REFERENCES ([a-z_]+)\(/', $statements[$index], $references);
+        $this->assertSame(['sects', 'cultivation_manuals', 'users', 'users'], $references[1]);
+        foreach (array_unique($references[1]) as $table) {
+            $dependency = array_search($table, SeasonScoringSchema::TABLES, true);
+            $this->assertNotFalse($dependency);
+            $this->assertLessThan($index, $dependency);
+        }
+    }
     public function test_guard_requires_opt_in_marker_valid_port_and_random_database_name(): void
     {
         $env = ['APP_ENV' => 'testing', 'SEASON_TEST_MARIADB' => '1', 'SEASON_TEST_DISPOSABLE' => '1', 'SEASON_TEST_INSTANCE_TOKEN' => str_repeat('a', 32)];

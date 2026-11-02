@@ -13,7 +13,7 @@ final class SeasonScoringSchema
         'realms', 'users', 'dao_records', 'dao_paths', 'dao_techniques',
         'cultivation_manuals', 'user_cultivation_manuals',
         'battles', 'battle_logs', 'battle_challenges', 'notifications',
-        'sects', 'sect_members', 'item_templates', 'inventory', 'equipment_slots',
+        'sects', 'sect_library_manuals', 'sect_members', 'item_templates', 'inventory', 'equipment_slots',
         'world_regions', 'world_boss_templates', 'world_bosses', 'boss_damage_log', 'boss_rewards',
         'global_announcements', 'world_state', 'sect_bases', 'sect_buildings', 'sect_npcs',
         'daily_tasks', 'weekly_tasks', 'titles', 'user_titles', 'seasons', 'season_rankings',
