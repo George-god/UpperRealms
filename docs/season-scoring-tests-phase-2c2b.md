@@ -95,7 +95,7 @@ export SEASON_TEST_PORT=33308 SEASON_TEST_USER=root SEASON_TEST_PASSWORD=''
 
 status=0
 timeout --signal=TERM --kill-after=15s 600s bash -c \
-  'php vendor/bin/phpunit tests/Unit/SeasonScoringHarnessTest.php &&
+  'php vendor/bin/phpunit --filter "SeasonScoringHarnessTest|SeasonScoringDiagnosticsTest" &&
    php vendor/bin/phpunit tests/Feature/SeasonScoringCharacterizationTest.php &&
    php vendor/bin/phpunit --filter "SeasonLifecycleLockTest|SeasonConnectionDisposerTest|SeasonProcessingTest|SeasonConcurrencyTest|ProcessSeasonsCommandTest|RememberTokenMigrationTest"' \
   || status=$?
@@ -130,6 +130,50 @@ Existing suites keep their original guards and run only against this same contai
 - Without disposable MariaDB opt-in, all 27 new integration cases are skipped.
   Never report those cases as passed based on syntax checks or unit tests.
 - The filter above is a targeted regression run, not the full application suite.
+
+## Safe SQL diagnostics after the diagnostic correction
+
+Set `REVIEWED_COMMIT` to the exact new corrective commit supplied in the delivery
+report, once that commit is available remotely. Repeat verification before running
+dependencies/tests; the original `4f753f01e42c1ca75e4cc1b8d64b051394dd57c9`
+does not contain this diagnostic correction. Do not change fixtures until the new
+output has identified the missing objects on the disposable Linux run.
+
+The independent worker now uses `SeasonScoringDiagnostics` to return structured
+`diagnostic_details` alongside the unchanged `diagnostic_sqlstates` field and
+`unexpected_diagnostic_count`. Strict assertions remain in place. A missing-object
+failure includes metadata like this **illustrative synthetic example**, not a
+finding about which objects are currently missing:
+
+```json
+{"sqlstate":"42S22","kind":"missing_column","driver_code":1054,"identifier":"u.synthetic_missing_column"}
+```
+
+Recognized MariaDB 1146/42S02 errors report the missing table name without the schema
+prefix. Recognized 1054/42S22 errors report the missing column and optional qualifier.
+Only ASCII identifiers of up to 64 characters per component are accepted; unusual
+identifiers and values containing known worker credentials/instance token/app key
+are redacted. Other SQL errors expose only SQLSTATE and a recognized driver number.
+No raw message, SQL statement, bound values, database name, connection string, player
+record, credential or log path is returned. Unrecognized message formats therefore
+may identify only the error code, rather than echoing unsafe text.
+
+Details are deduplicated and capped at 20 entries. The collector continues checking
+for SQLSTATEs and unexpected errors after that cap and sets
+`diagnostic_details_truncated`. Scanning is bounded to 256 KiB total and 8 KiB per
+line, with at most 20 distinct SQLSTATEs. Read failures, nonregular log paths or
+exceeded collection limits set `diagnostic_collection_errors`, which is asserted
+empty: incomplete collection cannot silently pass. Repeated errors still contribute
+to the unexpected count. The prior synthetic-fault/nested-transaction allowances
+have not been expanded to accept any real SQL error.
+
+Both characterization assertion sites append the safe metadata to PHPUnit failure
+messages, so it remains visible after existing cleanup removes each worker's private
+`diagnostics.log`. No persistent diagnostic artifact or additional database is created.
+The collector's unit suite covers real-format missing-table/column messages,
+redaction, generic SQL errors, deduplication/output limits, collection limits,
+unchanged expected-fault classification and JSON transport from an independent PHP
+process. It does not substitute for rerunning the six failed Linux cases.
 
 ## Cleanup after shell interruption
 
