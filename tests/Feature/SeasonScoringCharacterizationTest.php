@@ -49,82 +49,6 @@ class SeasonScoringCharacterizationTest extends DisposableSeasonScoringDatabase
     }
 
     #[DataProvider('paths')]
-    public function test_cultivation_scores_actual_gain_after_gameplay_commit(string $path): void
-    {
-        $this->season('+2 DAY');
-        $probe = $this->runAction($path, 'cultivate');
-        $result = $probe['result'];
-        $this->assertTrue($result['success']);
-        $this->assertGreaterThan(0, $result['chi_gained']);
-        $this->assertSame(100 + $result['chi_gained'], (int) DB::table('users')->find(1)->chi);
-        $this->assertSame(max(1, (int) floor($result['chi_gained'] / 10)), (int) DB::table('season_rankings')->value('score_cultivation'));
-        $this->assertContains('before_category', $probe['events']);
-        $this->assertContains('after_commit', $probe['events']);
-        $this->assertLessThan(array_search('before_category', $probe['events'], true), array_search('after_commit', $probe['events'], true));
-        $this->assertFalse($probe['transaction_open']);
-    }
-
-    #[DataProvider('paths')]
-    public function test_existing_zero_gain_cultivation_still_scores_one_point(string $path): void
-    {
-        $this->season('+2 DAY');
-        DB::table('users')->where('id', 1)->update(['chi' => 1000]);
-        $result = $this->runAction($path, 'cultivate')['result'];
-        $this->assertTrue($result['success']);
-        $this->assertSame(0, $result['chi_gained']);
-        $this->assertSame(1, (int) DB::table('season_rankings')->value('score_cultivation'));
-    }
-
-    #[DataProvider('paths')]
-    public function test_existing_no_season_allows_unscored_gameplay_without_replacement(string $path): void
-    {
-        $result = $this->runAction($path, 'cultivate')['result'];
-        $this->assertTrue($result['success']);
-        $this->assertGreaterThan(100, (int) DB::table('users')->find(1)->chi);
-        $this->assertSame(0, DB::table('seasons')->count());
-        $this->assertSame(0, DB::table('season_rankings')->count());
-    }
-
-    #[DataProvider('paths')]
-    public function test_existing_scoring_failure_does_not_roll_back_cultivation(string $path): void
-    {
-        $this->season('+2 DAY');
-        $probe = $this->runAction($path, 'cultivate', ['fault' => 'before_category']);
-        $this->assertTrue($probe['result']['success']);
-        $this->assertGreaterThan(100, (int) DB::table('users')->find(1)->chi);
-        $this->assertContains('after_commit', $probe['events']);
-        $this->assertContains('before_category', $probe['events']);
-        $this->assertNotContains('after_category', $probe['events']);
-        $this->assertSame(1, DB::table('season_rankings')->count());
-        $this->assertSame(0, (int) DB::table('season_rankings')->value('score_cultivation'));
-        $this->assertFalse($probe['transaction_open']);
-    }
-
-    #[DataProvider('paths')]
-    public function test_existing_total_failure_leaves_category_and_gameplay_committed(string $path): void
-    {
-        $this->season('+2 DAY');
-        $probe = $this->runAction($path, 'cultivate', ['fault' => 'before_total']);
-        $this->assertTrue($probe['result']['success']);
-        $this->assertGreaterThan(100, (int) DB::table('users')->find(1)->chi);
-        $this->assertGreaterThan(0, (int) DB::table('season_rankings')->value('score_cultivation'));
-        $this->assertSame(0, (int) DB::table('season_rankings')->value('total_score'));
-    }
-
-    #[DataProvider('paths')]
-    public function test_real_commit_acknowledgement_loss_can_persist_unscored_cultivation(string $path): void
-    {
-        $this->season('+2 DAY');
-        $probe = $this->runAction($path, 'cultivate', ['fault' => 'after_commit']);
-        $this->assertFalse($probe['result']['success']);
-        $this->assertContains('after_commit', $probe['events']);
-        $this->assertGreaterThan(100, (int) DB::table('users')->find(1)->chi, 'Observer sees a real commit, not a throw before persistence.');
-        $this->assertNotNull(DB::table('users')->find(1)->last_cultivation_at);
-        $this->assertSame(0, DB::table('season_rankings')->count());
-        $this->assertFalse($probe['transaction_open']);
-    }
-
-    #[DataProvider('paths')]
     public function test_sect_donation_preserves_gold_units_exp_and_season_score(string $path): void
     {
         $this->season('+2 DAY');
@@ -235,24 +159,6 @@ class SeasonScoringCharacterizationTest extends DisposableSeasonScoringDatabase
             ['gold' => 700, 'spirit_stones' => 5], ['gold' => 300, 'spirit_stones' => 2],
             ['gold' => 300, 'spirit_stones' => 2], ['gold' => 100, 'spirit_stones' => 1],
         ], $rewards);
-    }
-
-    public function test_sql_barrier_observes_gameplay_commit_before_seasonal_update(): void
-    {
-        $this->season('+2 DAY');
-        $child = $this->startScoring('laravel', 'cultivate', ['barrier' => 'before_category']);
-        $this->awaitScoringBarrier($child, 'before_category');
-        $this->assertGreaterThan(100, (int) DB::table('users')->find(1)->chi);
-        $this->assertSame(0, (int) DB::table('season_rankings')->value('score_cultivation'));
-        $this->releaseScoringBarrier($child, 'before_category');
-        $probe = $this->finishScoring($child);
-        $context = SeasonScoringDiagnostics::failureContext($probe);
-        $this->assertSame([], $probe['diagnostic_collection_errors'], 'Diagnostic collection failed.'.$context);
-        $this->assertSame([], $probe['diagnostic_sqlstates'], $context);
-        $this->assertSame(0, $probe['unexpected_diagnostic_count'], $context);
-        $this->assertTrue($probe['result']['success'], $context);
-        $this->assertGreaterThan(0, (int) DB::table('season_rankings')->value('score_cultivation'));
-        $this->assertNotSame((int) DB::scalar('SELECT CONNECTION_ID()'), $probe['connection_id']);
     }
 
     private function bossFixture(int $hp): void

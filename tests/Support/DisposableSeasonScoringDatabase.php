@@ -114,6 +114,37 @@ abstract class DisposableSeasonScoringDatabase extends DisposableSeasonDatabase
         $this->assertNotFalse(file_put_contents($this->barrierPrefix($process, $event).'.release', '1'));
     }
 
+    protected function awaitScoringLockWait(Process $owner, Process $waiter): void
+    {
+        $files = [];
+        foreach ($this->children as [$process, $directory, $name]) {
+            if ($process === $owner) { $files['owner'] = $directory.'/'.$name.'.connection'; }
+            if ($process === $waiter) { $files['waiter'] = $directory.'/'.$name.'.connection'; }
+        }
+        $this->assertCount(2, $files);
+        $lock = \App\Support\SeasonLifecycleLock::name(DB::connection()->getPdo());
+        $deadline = hrtime(true) + 4_000_000_000;
+        do {
+            clearstatcache();
+            $owner->checkTimeout();
+            $waiter->checkTimeout();
+            if (is_file($files['owner']) && is_file($files['waiter'])) {
+                $ownerId = (int) file_get_contents($files['owner']);
+                $waiterId = (int) file_get_contents($files['waiter']);
+                $this->assertNotSame($ownerId, $waiterId);
+                $used = $this->admin->prepare('SELECT IS_USED_LOCK(?)');
+                $used->execute([$lock]);
+                $waiting = $this->admin->prepare("SELECT COUNT(*) FROM information_schema.PROCESSLIST
+                    WHERE ID = ? AND DB = ? AND STATE LIKE '%lock%' AND INFO LIKE '%GET_LOCK%'");
+                $waiting->execute([$waiterId, $this->database]);
+                if ((int) $used->fetchColumn() === $ownerId && (int) $waiting->fetchColumn() === 1) { return; }
+            }
+            $this->assertTrue($owner->isRunning() && $waiter->isRunning(), 'Workers exited before observable contention.');
+            usleep(10000);
+        } while (hrtime(true) < $deadline);
+        $this->fail('Contender did not enter an observable lifecycle lock wait within four seconds.');
+    }
+
     private function barrierPrefix(Process $process, string $event): string
     {
         foreach ($this->children as [$child, $directory, $name]) {

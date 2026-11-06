@@ -67,9 +67,11 @@ $service = static function (string $name) use ($namespace): object {
 
     return new $class;
 };
+$operationStart = hrtime(true);
 try {
     $result = match ($input['operation']) {
-        'cultivate' => $service('CultivationService')->cultivate(1),
+        'finalize' => $service('SeasonService')->processEndedSeasons(),
+        'cultivate' => $service('CultivationService')->cultivate(1, $input['key'] ?? 'worker_cultivation_key_0001'),
         'donate' => $service('SectService')->donate(1, 350),
         'battle' => $service('BattleService')->simulateBattle(1, 2, ['attacker_use_techniques' => false, 'defender_use_techniques' => false]),
         'challenge' => $service('ChallengeService')->acceptChallenge((int) $input['challenge_id'], 2, false),
@@ -98,5 +100,6 @@ $diagnostics = SeasonScoringDiagnostics::fromFile(
     $input['directory'].'/diagnostics.log', $input['operation'], $input['fault'] ?? '',
     [$input['password'], $input['username'], (string) getenv('SEASON_TEST_INSTANCE_TOKEN'), (string) getenv('APP_KEY')]
 );
-echo json_encode([...$diagnostics, 'result' => $result, 'events' => $pdo->events, 'transaction_open' => $pdo->inTransaction(),
-    'connection_id' => (int) $pdo->query('SELECT CONNECTION_ID()')->fetchColumn()], JSON_THROW_ON_ERROR);
+echo json_encode([...$diagnostics, 'result' => $result, 'events' => $pdo->events, 'event_times' => $pdo->eventTimes,
+    'operation_ms' => (hrtime(true) - $operationStart) / 1e6, 'transaction_open' => $pdo->inTransaction(),
+    'connection_id' => \App\Support\SeasonLifecycleLock::isUnsafe($pdo) ? null : (int) $pdo->query('SELECT CONNECTION_ID()')->fetchColumn()], JSON_THROW_ON_ERROR);

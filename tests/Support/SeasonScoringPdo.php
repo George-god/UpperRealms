@@ -12,6 +12,7 @@ use PDOStatement;
 final class SeasonScoringPdo extends PDO
 {
     public array $events = [];
+    public array $eventTimes = [];
 
     private array $observed = [];
 
@@ -46,10 +47,16 @@ final class SeasonScoringPdo extends PDO
     public function event(string $event): void
     {
         $this->events[] = $event;
+        $this->eventTimes[$event][] = hrtime(true);
         if (isset($this->observed[$event])) {
             return;
         }
         $this->observed[$event] = true;
+        if (($this->config['advance_at'] ?? '') === $event) {
+            $clock = (string) ($this->config['advance_clock'] ?? '');
+            if (!preg_match('/^[0-9]{10}$/D', $clock)) { throw new \RuntimeException('Invalid advancing test clock.'); }
+            $this->exec('SET timestamp = '.$clock);
+        }
         if (($this->config['barrier'] ?? '') === $event) {
             SeasonScoringBarrier::point($this->config['directory'], $this->config['worker'], $event);
         }
@@ -114,6 +121,12 @@ final class SeasonScoringStatement extends PDOStatement
         $event = match (true) {
             str_contains($sql, 'GET_LOCK(') => 'acquire',
             str_contains($sql, 'RELEASE_LOCK(') => 'release',
+            str_starts_with($sql, 'INSERT INTO season_gameplay_operations') => 'ledger',
+            str_starts_with($sql, 'UPDATE users SET chi') => 'gameplay',
+            str_starts_with($sql, 'UPDATE users SET strength') => 'attribute_growth',
+            str_starts_with($sql, 'INSERT INTO notifications') => 'notification',
+            str_starts_with($sql, 'INSERT IGNORE INTO player_caves') => 'cave',
+            str_starts_with($sql, 'SELECT id, weight_pvp') => 'admission',
             str_starts_with($sql, 'INSERT INTO season_rankings') => 'score_row',
             str_starts_with($sql, 'UPDATE season_rankings SET total_score') => 'total',
             str_starts_with($sql, 'UPDATE season_rankings SET score_') => 'category',
