@@ -45,6 +45,7 @@ class NotificationService
             ]);
             return true;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("Notification creation failed: " . $e->getMessage());
             return false;
         }
@@ -76,6 +77,7 @@ class NotificationService
             $stmt->execute([$userId]);
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("Failed to fetch notifications: " . $e->getMessage());
             return [];
         }
@@ -97,6 +99,7 @@ class NotificationService
             $stmt->execute([$notificationId, $userId]);
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("Failed to mark notification as read: " . $e->getMessage());
             return false;
         }
@@ -116,6 +119,7 @@ class NotificationService
             $stmt->execute([$userId]);
             return true;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("Failed to mark all notifications as read: " . $e->getMessage());
             return false;
         }
@@ -137,6 +141,7 @@ class NotificationService
             $result = $stmt->fetch();
             return (int)($result['count'] ?? 0);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("Failed to get unread count: " . $e->getMessage());
             return 0;
         }

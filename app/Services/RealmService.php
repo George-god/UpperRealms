@@ -20,6 +20,7 @@ class RealmService
             $stmt = $db->query("SHOW COLUMNS FROM realms LIKE 'required_level'");
             return $stmt->fetch() ? 'required_level' : 'min_level';
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 'min_level';
         }
     }
@@ -39,6 +40,7 @@ class RealmService
             $stmt->execute([$userLevel]);
             return $stmt->fetchAll();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("RealmService::getRealmsForLevel " . $e->getMessage());
             return [];
         }
@@ -76,6 +78,7 @@ class RealmService
             $db->prepare("UPDATE users SET realm_id = ? WHERE id = ?")->execute([$realmId, $userId]);
             return ['success' => true, 'message' => 'Realm updated.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("RealmService::setUserRealm " . $e->getMessage());
             return ['success' => false, 'message' => 'Database error.'];
         }
@@ -133,6 +136,7 @@ class RealmService
                 'levels_until_next_realm' => $levelsUntilNext,
             ];
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log("RealmService::getBreakthroughAvailable " . $e->getMessage());
             return [
                 'available' => false,
@@ -165,6 +169,7 @@ class RealmService
             $max = (int)($stmt->fetchColumn() ?: 1);
             return max(1, $max);
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('RealmService::getCultivationLevelCap ' . $e->getMessage());
             return 999999;
         }
@@ -182,6 +187,7 @@ class RealmService
             $row = $stmt->fetch();
             return $row ?: null;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return null;
         }
     }

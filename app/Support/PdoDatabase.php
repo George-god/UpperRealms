@@ -19,6 +19,7 @@ final class PdoDatabase
             SeasonConnectionDisposer::discard($pdo);
             throw new SeasonLifecycleLockException('unsafe_connection', null, true);
         }
+        GameplayOperationContext::assertConnection($pdo);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
         return $pdo;

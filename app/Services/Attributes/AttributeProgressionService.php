@@ -80,6 +80,7 @@ final class AttributeProgressionService
                 $userId,
             ]);
         } catch (PDOException $e) {
+            \App\Support\GameplayOperationContext::required($e);
             error_log('AttributeProgressionService::applyMinorLevelGrowth '.$e->getMessage());
 
             return [];
@@ -94,7 +95,8 @@ final class AttributeProgressionService
             $db->query('SELECT strength FROM users LIMIT 0');
 
             return true;
-        } catch (PDOException) {
+        } catch (PDOException $e) {
+            \App\Support\GameplayOperationContext::required($e);
             return false;
         }
     }

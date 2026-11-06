@@ -240,7 +240,7 @@ class SeasonService
                     $stmt = $db->prepare("
                         SELECT id, name, slug, weight_pvp, weight_boss, weight_cultivation, weight_sect
                         FROM seasons
-                        WHERE status = 'active' AND ends_at < NOW()
+                        WHERE status = 'active' AND ends_at <= NOW()
                         ORDER BY id ASC
                         FOR UPDATE
                     ");
@@ -319,6 +319,16 @@ class SeasonService
         return ['ok' => true, 'status' => 'complete', 'finalization_committed' => true, 'processed' => $processed, 'detail' => $detail];
     }
 
+    /** Coordinator owns the lifecycle mutex; this helper never opens a transaction. */
+    public function finalizeGameplaySeason(PDO $db, array $season): void
+    {
+        SeasonLifecycleLock::assertHeld($db);
+        if (!$db->inTransaction() || !\App\Support\GameplayOperationContext::active()) {
+            throw new \RuntimeException('Owned maintenance transaction required.');
+        }
+        $this->assignAllRanks($db, (int) $season['id']);
+        $this->distributeRewardsAndTitles($db, (int) $season['id'], $season);
+    }
     public function getActiveSeason(): ?array
     {
         try {
@@ -509,6 +519,7 @@ class SeasonService
         try {
             $ns->createNotification($userId, 'season_reward', $title, $message, null, 'season');
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             // ignore
         }
     }

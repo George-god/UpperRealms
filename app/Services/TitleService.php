@@ -38,6 +38,7 @@ class TitleService
                 'max_chi_pct' => (float)$row['bonus_max_chi_pct'],
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::getEquippedBonuses ' . $e->getMessage());
             return $defaults;
         }
@@ -72,6 +73,7 @@ class TitleService
                 'max_chi_pct' => (float)$row['bonus_max_chi_pct'],
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::getEquippedTitleDisplay ' . $e->getMessage());
             return null;
         }
@@ -88,6 +90,7 @@ class TitleService
             $db = PdoDatabase::connection();
             $db->prepare("UPDATE users SET title_pve_wins = title_pve_wins + 1 WHERE id = ?")->execute([$userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::onPveWin ' . $e->getMessage());
             return;
         }
@@ -100,6 +103,7 @@ class TitleService
             $db = PdoDatabase::connection();
             $db->prepare("UPDATE users SET title_explore_count = title_explore_count + 1 WHERE id = ?")->execute([$userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::onExplore ' . $e->getMessage());
             return;
         }
@@ -112,6 +116,7 @@ class TitleService
             $db = PdoDatabase::connection();
             $db->prepare("UPDATE users SET title_boss_attacks = title_boss_attacks + 1 WHERE id = ?")->execute([$userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::onBossAttack ' . $e->getMessage());
             return;
         }
@@ -128,6 +133,7 @@ class TitleService
             $db->prepare("UPDATE users SET title_sect_donated_gold = title_sect_donated_gold + ? WHERE id = ?")
                 ->execute([$goldAmount, $userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::onSectDonate ' . $e->getMessage());
             return;
         }
@@ -140,6 +146,7 @@ class TitleService
             $db = PdoDatabase::connection();
             $db->prepare("UPDATE users SET title_tribulations_won = title_tribulations_won + 1 WHERE id = ?")->execute([$userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::onTribulationSuccess ' . $e->getMessage());
             return;
         }
@@ -196,10 +203,12 @@ class TitleService
                         'title'
                     );
                 } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
                     // ignore
                 }
             }
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::checkAndUnlockTitles ' . $e->getMessage());
         }
     }
@@ -242,6 +251,7 @@ class TitleService
             $stmt->execute([$titleId]);
             $t = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$t) {
+                if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required(new \RuntimeException('Required seasonal title missing.')); }
                 return false;
             }
             $ins = $db->prepare("INSERT IGNORE INTO user_titles (user_id, title_id) VALUES (?, ?)");
@@ -260,9 +270,11 @@ class TitleService
             );
             return true;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::grantTitle ' . $e->getMessage());
             return false;
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::grantTitle ' . $e->getMessage());
             return false;
         }
@@ -279,6 +291,7 @@ class TitleService
                 $db->prepare("UPDATE users SET equipped_title_id = NULL WHERE id = ?")->execute([$userId]);
                 return ['success' => true, 'message' => 'Title unequipped.'];
             } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
                 return ['success' => false, 'message' => 'Could not update title.'];
             }
         }
@@ -292,6 +305,7 @@ class TitleService
             $db->prepare("UPDATE users SET equipped_title_id = ? WHERE id = ?")->execute([$titleId, $userId]);
             return ['success' => true, 'message' => 'Title equipped.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::equipTitle ' . $e->getMessage());
             return ['success' => false, 'message' => 'Could not equip title.'];
         }
@@ -373,6 +387,7 @@ class TitleService
             }
             return ['titles' => $out, 'stats' => $stats, 'equipped_id' => $equippedId];
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('TitleService::getTitlesPageData ' . $e->getMessage());
             return ['titles' => [], 'stats' => $stats, 'equipped_id' => null];
         }

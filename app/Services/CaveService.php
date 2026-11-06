@@ -26,13 +26,14 @@ class CaveService
 
     private function tablesAvailable(PDO $db): bool
     {
-        if (self::$tablesOk !== null) {
+        if ((! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) && (self::$tablesOk !== null)) {
             return self::$tablesOk;
         }
         try {
             $db->query('SELECT 1 FROM player_caves LIMIT 1');
             self::$tablesOk = true;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             self::$tablesOk = false;
         }
         return self::$tablesOk;
@@ -50,6 +51,7 @@ class CaveService
             );
             $stmt->execute([$userId]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CaveService::ensureRow ' . $e->getMessage());
         }
     }
@@ -216,6 +218,7 @@ class CaveService
                 'slots' => $slots,
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CaveService::getCaveState ' . $e->getMessage());
             return $empty;
         }
@@ -290,6 +293,7 @@ class CaveService
             $db->commit();
             return ['success' => true, 'message' => 'You have claimed your cultivation cave. Qi gathers more readily within its walls.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -355,6 +359,7 @@ class CaveService
                 'message' => 'The cave deepens. Arrays and veins resonate at a higher tier (level ' . $cost['to_level'] . ').',
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -397,6 +402,7 @@ class CaveService
 
             return ['success' => true, 'message' => 'The cave’s ambient qi shifts to match your chosen environment.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CaveService::setEnvironment ' . $e->getMessage());
             return ['success' => false, 'error' => 'Could not change environment.'];
         }
@@ -465,6 +471,7 @@ class CaveService
 
             return ['success' => true, 'message' => $msg];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CaveService::setFormationSlot ' . $e->getMessage());
             return ['success' => false, 'error' => 'Could not update formation.'];
         }

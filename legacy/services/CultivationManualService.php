@@ -56,6 +56,7 @@ class CultivationManualService
                 'recipes' => $this->getCraftingRecipes($db),
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getManualPageData ' . $e->getMessage());
             return [
                 'dao_profile' => null,
@@ -113,6 +114,7 @@ class CultivationManualService
                 'total' => count($owned) + count($borrowed),
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getManualsForInventory '.$e->getMessage());
 
             return $empty;
@@ -127,6 +129,7 @@ class CultivationManualService
 
             return true;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return false;
         }
     }
@@ -152,6 +155,7 @@ class CultivationManualService
                 'borrowed_count' => $this->getActiveBorrowCount($userId, $db),
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getSectLibraryPageData ' . $e->getMessage());
             return [
                 'membership' => null,
@@ -197,6 +201,7 @@ class CultivationManualService
 
             return $effects;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getActiveEffectsForUser ' . $e->getMessage());
             return $this->emptyEffects();
         }
@@ -266,6 +271,7 @@ class CultivationManualService
 
             return ['success' => true, 'message' => 'Custom cultivation manual crafted successfully.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -310,6 +316,7 @@ class CultivationManualService
             $db->commit();
             return ['success' => true, 'message' => 'Manual stored in the sect library.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -364,6 +371,7 @@ class CultivationManualService
             $db->commit();
             return ['success' => true, 'message' => 'Manual borrowed from the sect library.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -387,6 +395,7 @@ class CultivationManualService
             }
             return ['success' => true, 'message' => 'Manual returned to the sect library.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::returnBorrowedLibraryManual ' . $e->getMessage());
             return ['success' => false, 'message' => 'Could not return the manual.'];
         }
@@ -459,6 +468,7 @@ class CultivationManualService
 
             return $manual;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::awardAncientRuinsManual ' . $e->getMessage());
             return null;
         }
@@ -513,6 +523,7 @@ class CultivationManualService
             $stmt->execute([$userId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getOwnedManuals ' . $e->getMessage());
             return [];
         }
@@ -533,6 +544,7 @@ class CultivationManualService
             $stmt->execute([$userId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getBorrowedManuals ' . $e->getMessage());
             return [];
         }
@@ -574,6 +586,7 @@ class CultivationManualService
             $stmt = $db->query('SELECT * FROM cultivation_manual_recipes ORDER BY required_level ASC, id ASC');
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::getCraftingRecipes ' . $e->getMessage());
             return [];
         }
@@ -630,6 +643,7 @@ class CultivationManualService
             $db->prepare('INSERT INTO user_cultivation_manuals (user_id, manual_id, acquired_from, is_active) VALUES (?, ?, ?, 1)')
                 ->execute([$userId, $manualId, $source]);
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('CultivationManualService::grantManualOwnership '.$e->getMessage());
 
             return false;

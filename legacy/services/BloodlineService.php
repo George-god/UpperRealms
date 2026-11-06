@@ -48,7 +48,7 @@ class BloodlineService
 
     private function tablesAvailable(PDO $db): bool
     {
-        if (self::$tablesOk !== null) {
+        if ((! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) && (self::$tablesOk !== null)) {
             return self::$tablesOk;
         }
         try {
@@ -56,6 +56,7 @@ class BloodlineService
             $st->execute();
             self::$tablesOk = true;
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             self::$tablesOk = false;
         }
         return self::$tablesOk;
@@ -63,7 +64,7 @@ class BloodlineService
 
     private function evolutionFeatureAvailable(PDO $db): bool
     {
-        if (self::$evolutionOk !== null) {
+        if ((! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) && (self::$evolutionOk !== null)) {
             return self::$evolutionOk;
         }
         try {
@@ -73,6 +74,7 @@ class BloodlineService
             $s2->execute();
             self::$evolutionOk = true;
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             self::$evolutionOk = false;
         }
         return self::$evolutionOk;
@@ -80,7 +82,7 @@ class BloodlineService
 
     private function abilitiesFeatureAvailable(PDO $db): bool
     {
-        if (self::$abilitiesOk !== null) {
+        if ((! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) && (self::$abilitiesOk !== null)) {
             return self::$abilitiesOk;
         }
         try {
@@ -88,6 +90,7 @@ class BloodlineService
             $st->execute();
             self::$abilitiesOk = true;
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             self::$abilitiesOk = false;
         }
         return self::$abilitiesOk;
@@ -101,7 +104,7 @@ class BloodlineService
 
     private function fetchUserLevel(int $userId): int
     {
-        if (isset(self::$userLevelCache[$userId])) {
+        if ((! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) && (isset(self::$userLevelCache[$userId]))) {
             return self::$userLevelCache[$userId];
         }
         try {
@@ -109,9 +112,12 @@ class BloodlineService
             $st = $db->prepare('SELECT level FROM users WHERE id = ? LIMIT 1');
             $st->execute([$userId]);
             $v = max(1, (int)$st->fetchColumn());
-            self::$userLevelCache[$userId] = $v;
+            if (! class_exists(\App\Support\GameplayOperationContext::class, false) || ! \App\Support\GameplayOperationContext::active()) {
+                self::$userLevelCache[$userId] = $v;
+            }
             return $v;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 1;
         }
     }
@@ -160,6 +166,7 @@ class BloodlineService
                     $mult *= 1.0 + $daoBonus;
                 }
             } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
                 // ignore
             }
         }
@@ -237,6 +244,7 @@ class BloodlineService
             }
             return max(0.5, min(1.35, (float)$m));
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 1.0;
         }
     }
@@ -253,6 +261,7 @@ class BloodlineService
             $id = (int)$v;
             return $id > 0 ? $id : null;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return null;
         }
     }
@@ -360,6 +369,7 @@ class BloodlineService
 
             return $newCount;
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('BloodlineService::syncUnlocksForUser ' . $e->getMessage());
             return 0;
         }
@@ -376,6 +386,7 @@ class BloodlineService
             $s->execute([$userId]);
             $boss = (int)$s->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             $boss = 0;
         }
 
@@ -385,6 +396,7 @@ class BloodlineService
             $s->execute([$userId]);
             $trib = (int)$s->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             $trib = 0;
         }
 
@@ -394,6 +406,7 @@ class BloodlineService
             $s->execute([$userId]);
             $pvp = (int)$s->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             $pvp = 0;
         }
 
@@ -403,6 +416,7 @@ class BloodlineService
             $s->execute([$userId]);
             $dung = (int)$s->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             $dung = 0;
         }
 
@@ -461,6 +475,7 @@ class BloodlineService
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return $row ?: null;
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('BloodlineService::getActiveBloodline ' . $e->getMessage());
             return null;
         }
@@ -580,6 +595,7 @@ class BloodlineService
                     }
                 }
             } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
                 $playerLevel = 1;
             }
 
@@ -672,6 +688,7 @@ class BloodlineService
                 'active_scaling' => $activeScaling,
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('BloodlineService::getBloodlinePageState ' . $e->getMessage());
             return $empty;
         }
@@ -700,6 +717,7 @@ class BloodlineService
                 ->execute([$userId, $bloodlineId]);
             return ['success' => true, 'message' => 'Your active bloodline has been switched. Passives and bloodline effects now follow this lineage.'];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             error_log('BloodlineService::setActiveBloodline ' . $e->getMessage());
             return ['success' => false, 'error' => 'Could not update active bloodline.'];
         }
@@ -768,6 +786,7 @@ class BloodlineService
                 'data' => ['awakening_level' => $cost['to']],
             ];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -871,6 +890,7 @@ class BloodlineService
             $st->execute([$userId, $tier]);
             return (int)$st->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 0;
         }
     }
@@ -887,6 +907,7 @@ class BloodlineService
             $st->execute([$userId, $templateId]);
             return (int)$st->fetchColumn();
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 0;
         }
     }
@@ -973,6 +994,7 @@ class BloodlineService
             /** @var array<int, string> $ids */
             return (int)$ids[array_rand($ids)];
         } catch (\Throwable $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             return 1;
         }
     }
@@ -1145,11 +1167,13 @@ class BloodlineService
                 'data' => ['evolution_tier' => $nextTier],
             ];
         } catch (\RuntimeException $re) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($re); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
             return ['success' => false, 'error' => $re->getMessage()];
         } catch (PDOException $e) {
+            if (class_exists(\App\Support\GameplayOperationContext::class, false)) { \App\Support\GameplayOperationContext::required($e); }
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }

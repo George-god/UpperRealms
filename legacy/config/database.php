@@ -121,6 +121,9 @@ class Database
             }
         }
 
+        if (class_exists(\App\Support\GameplayOperationContext::class, false)) {
+            \App\Support\GameplayOperationContext::assertConnection(self::$instance);
+        }
         return self::$instance;
     }
 

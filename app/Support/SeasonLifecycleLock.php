@@ -38,6 +38,13 @@ final class SeasonLifecycleLock
         return 'upperrealms:season:'.substr(hash('sha256', $schema), 0, 40);
     }
 
+    public static function assertHeld(PDO $db): void
+    {
+        if (self::isUnsafe($db) || !in_array($db, self::$held, true)) {
+            throw new SeasonLifecycleLockException('lifecycle_ownership_required');
+        }
+    }
+
     public static function run(PDO $db, callable $operation, int $timeout = 5): mixed
     {
         self::$poisoned ??= new WeakMap;
