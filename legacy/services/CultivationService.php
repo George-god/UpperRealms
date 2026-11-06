@@ -10,6 +10,7 @@ require_once __DIR__ . '/RealmService.php';
 
 use Game\Config\Database;
 use PDOException;
+require_once dirname(__DIR__, 2).'/app/Support/CultivationOperationCoordinator.php';
 
 /**
  * Cultivation service.
@@ -31,74 +32,87 @@ class CultivationService
      *
      * @return array success, error?, chi_gained, chi_before, chi_after, max_chi, level_up?, new_level?, new_max_chi?, cooldown_remaining
      */
-    public function cultivate(int $userId): array
+    public function cultivate(int $userId, string $operationKey = ''): array
     {
         try {
             $db = Database::getConnection();
-            $db->beginTransaction();
+            return \App\Support\CultivationOperationCoordinator::configured()->execute(
+                $db, $userId, $operationKey, function (\PDO $db) use ($userId): array {
+                    $user = $this->fetchUser($db, $userId);
+                    if (!$user) {
+                        return $this->fail('User not found.');
+                    }
 
-            $user = $this->fetchUser($db, $userId);
-            if (!$user) {
-                $db->rollBack();
-                return $this->fail('User not found.');
-            }
+                    $cooldown = $this->checkCooldown($user);
+                    if (!$cooldown['can_cultivate']) {
+                        return [
+                            'success' => false,
+                            'error' => $cooldown['error'],
+                            'cooldown_remaining' => $cooldown['cooldown_remaining']
+                        ];
+                    }
 
-            $cooldown = $this->checkCooldown($user);
-            if (!$cooldown['can_cultivate']) {
-                $db->rollBack();
-                return [
-                    'success' => false,
-                    'error' => $cooldown['error'],
-                    'cooldown_remaining' => $cooldown['cooldown_remaining']
-                ];
-            }
+                    $level = (int)$user['level'];
+                    $currentChi = (int)$user['chi'];
+                    $maxChi = (int)$user['max_chi'];
 
-            $level = (int)$user['level'];
-            $currentChi = (int)$user['chi'];
-            $maxChi = (int)$user['max_chi'];
+                    $chiGain = $this->calculateChiGain($level);
+                    $caveBonuses = (new CaveService())->getEffectiveBonuses($userId);
+                    $bloodBonuses = (new BloodlineService())->getPassiveBonuses($userId);
+                    $cultMult = 1.0 + (float)($caveBonuses['cultivation'] ?? 0.0) + (float)($bloodBonuses['cultivation_pct'] ?? 0.0);
+                    $chiGain = (int)max(1, floor($chiGain * $cultMult));
+                    $newChi = min(max(0, $currentChi) + $chiGain, max(0, $maxChi));
+                    $newChi = max(0, $newChi);
+                    $actualGain = $newChi - max(0, $currentChi);
 
-            $chiGain = $this->calculateChiGain($level);
-            $caveBonuses = (new CaveService())->getEffectiveBonuses($userId);
-            $bloodBonuses = (new BloodlineService())->getPassiveBonuses($userId);
-            $cultMult = 1.0 + (float)($caveBonuses['cultivation'] ?? 0.0) + (float)($bloodBonuses['cultivation_pct'] ?? 0.0);
-            $chiGain = (int)max(1, floor($chiGain * $cultMult));
-            $newChi = min(max(0, $currentChi) + $chiGain, max(0, $maxChi));
-            $newChi = max(0, $newChi);
-            $actualGain = $newChi - max(0, $currentChi);
+                    $stmt = $db->prepare("UPDATE users SET chi = GREATEST(0, ?), last_cultivation_at = NOW() WHERE id = ?");
+                    $stmt->execute([$newChi, $userId]);
 
-            $stmt = $db->prepare("UPDATE users SET chi = GREATEST(0, ?), last_cultivation_at = NOW() WHERE id = ?");
-            $stmt->execute([$newChi, $userId]);
+                    $levelCap = (new RealmService())->getCultivationLevelCap($userId);
+                    $levelUpResult = $this->tryLevelUp($db, $userId, $newChi, $maxChi, $level, $newChi, $levelCap);
 
-            $levelCap = (new RealmService())->getCultivationLevelCap($userId);
-            $levelUpResult = $this->tryLevelUp($db, $userId, $newChi, $maxChi, $level, $newChi, $levelCap);
-
-            $db->commit();
-
-            try {
-                (new SeasonService())->onCultivation($userId, $actualGain);
-            } catch (\Throwable $e) {
-                error_log('Season cultivation: ' . $e->getMessage());
-            }
-
-            return [
-                'success' => true,
-                'chi_gained' => $actualGain,
-                'chi_before' => $currentChi,
-                'chi_after' => $levelUpResult['chi_after'],
-                'max_chi' => $levelUpResult['max_chi'],
-                'level_up' => $levelUpResult['leveled_up'],
-                'new_level' => $levelUpResult['new_level'],
-                'new_max_chi' => $levelUpResult['new_max_chi'],
-                'attribute_stat_gains' => $levelUpResult['attribute_stat_gains'] ?? [],
-                'cooldown_remaining' => self::COOLDOWN_SECONDS,
-                'realm_level_cap_reached' => !empty($levelUpResult['blocked_by_realm_cap']),
-            ];
-        } catch (\Exception $e) {
-            if (isset($db) && $db->inTransaction()) {
-                $db->rollBack();
-            }
-            error_log("CultivationService::cultivate " . $e->getMessage());
-            return $this->fail('Cultivation failed. Please try again.');
+                    $snapshot = $db->prepare('SELECT chi, max_chi, level, attack, defense FROM users WHERE id = ?');
+                    $snapshot->execute([$userId]);
+                    $display = $snapshot->fetch(\PDO::FETCH_ASSOC);
+                    if (! $display) { throw new \RuntimeException('Cultivation snapshot missing.'); }
+                    $display = array_map(static fn ($value): int => max(0, (int) $value), $display);
+                    $realmUi = (new RealmService())->getBreakthroughAvailable($userId);
+                    $display += [
+                        'realm_progress_percent' => (int) ($realmUi['realm_progress_percent'] ?? 0),
+                        'next_realm_required_level' => $realmUi['next_realm']['required_level'] ?? null,
+                        'next_realm_name' => $realmUi['next_realm']['name'] ?? null,
+                        'levels_until_next_realm' => (int) ($realmUi['levels_until_next_realm'] ?? 0),
+                        'breakthrough_available' => !empty($realmUi['available']),
+                    ];
+                    \App\Support\GameplayOperationContext::defer(static function () use ($userId): void {
+                        if (function_exists('app') && app()->bound(\App\Services\Stats\StatInvalidator::class)) {
+                            app(\App\Services\Stats\StatInvalidator::class)->invalidate($userId, 'cultivation');
+                        }
+                    }, admit: static function (\PDO $pdo, array &$maintenance): array {
+                    return \App\Support\SeasonGameplayAdmission::prepare($pdo,
+                        static fn (\PDO $db, array $season) => (new SeasonService())->finalizeGameplaySeason($db, $season), $maintenance);
+                });
+                    return [
+                        'success' => true,
+                        'display' => $display,
+                        'chi_gained' => $actualGain,
+                        'chi_before' => $currentChi,
+                        'chi_after' => $levelUpResult['chi_after'],
+                        'max_chi' => $levelUpResult['max_chi'],
+                        'level_up' => $levelUpResult['leveled_up'],
+                        'new_level' => $levelUpResult['new_level'],
+                        'new_max_chi' => $levelUpResult['new_max_chi'],
+                        'attribute_stat_gains' => $levelUpResult['attribute_stat_gains'] ?? [],
+                        'cooldown_remaining' => self::COOLDOWN_SECONDS,
+                        'realm_level_cap_reached' => !empty($levelUpResult['blocked_by_realm_cap']),
+                    ];
+                }, admit: static function (\PDO $pdo, array &$maintenance): array {
+                    return \App\Support\SeasonGameplayAdmission::prepare($pdo,
+                        static fn (\PDO $db, array $season) => (new SeasonService())->finalizeGameplaySeason($db, $season), $maintenance);
+                });
+        } catch (\Throwable $error) {
+            return ['success' => false, 'operation_status' => 'unavailable',
+                'error' => 'Cultivation unavailable. Retain the request key and retry.'];
         }
     }
 
@@ -196,7 +210,7 @@ class CultivationService
 
     private function fetchUser(\PDO $db, int $userId): ?array
     {
-        $stmt = $db->prepare("SELECT id, level, chi, max_chi, attack, defense, last_cultivation_at FROM users WHERE id = ? LIMIT 1");
+        $stmt = $db->prepare("SELECT id, level, chi, max_chi, attack, defense, last_cultivation_at FROM users WHERE id = ? LIMIT 1 FOR UPDATE");
         $stmt->execute([$userId]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -218,7 +232,7 @@ class CultivationService
     {
         try {
             $db = Database::getConnection();
-            $stmt = $db->prepare("SELECT last_cultivation_at FROM users WHERE id = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT last_cultivation_at FROM users WHERE id = ? LIMIT 1 FOR UPDATE");
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
 

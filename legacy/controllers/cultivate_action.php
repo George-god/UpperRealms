@@ -44,54 +44,25 @@ use Game\Service\RealmService;
 $userId = SessionHelper::requireUserIdForApi();
 Validator::requirePost();
 
-$service = new CultivationService();
-$result = $service->cultivate($userId);
-
+// Transport fields do not affect gameplay; no gameplay parameters are currently accepted.
+$allowed = ['action', 'operation_key', '_token'];
+if (array_diff(array_keys($_POST), $allowed) !== [] || (isset($_POST['action']) && $_POST['action'] !== 'cultivate')) {
+    ApiResponse::error('Invalid cultivation input.', 422, ['operation_status' => 'invalid_request']);
+}
+$key = $_POST['operation_key'] ?? ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? '');
+if (isset($_POST['operation_key'], $_SERVER['HTTP_IDEMPOTENCY_KEY']) && $_POST['operation_key'] !== $_SERVER['HTTP_IDEMPOTENCY_KEY']) {
+    ApiResponse::error('Conflicting request keys.', 422, ['operation_status' => 'invalid_request']);
+}
+if (!is_string($key) || !\App\Support\GameplayFingerprint::validKey($key)) {
+    ApiResponse::error('A valid cultivation request key is required.', 422, ['operation_status' => 'invalid_request']);
+}
+$result = (new CultivationService())->cultivate($userId, $key);
+$status = $result['operation_status'] ?? 'unavailable';
 if (!$result['success']) {
-    $cooldown = (int)($result['cooldown_remaining'] ?? 0);
-    ApiResponse::error(
-        $result['error'] ?? 'Cultivation failed.',
-        400,
-        $cooldown > 0 ? ['cooldown_remaining' => $cooldown] : null
-    );
+    $http = $status === 'conflict' ? 409 : (in_array($status, ['uncertain', 'unavailable', 'rolled_back', 'busy'], true) ? 503 : 400);
+    ApiResponse::error($result['error'] ?? 'Cultivation failed.', $http, $result);
 }
-
-// Centralized stats: use StatCalculator for final display values if needed; here we return DB base + result
-$db = \Game\Config\Database::getConnection();
-$userCols = 'chi, max_chi, level, attack, defense';
-try {
-    $db->query('SELECT strength FROM users LIMIT 0');
-    $userCols .= ', strength, agility, vitality, spirit, soul, willpower, attribute_points';
-} catch (\PDOException $e) {
-    // Attribute columns not migrated yet.
-}
-$stmt = $db->prepare("SELECT {$userCols} FROM users WHERE id = ? LIMIT 1");
-$stmt->execute([$userId]);
-$user = $stmt->fetch();
-
-$cooldownRemaining = (int)($result['cooldown_remaining'] ?? 0);
-
-$realmUi = (new RealmService())->getBreakthroughAvailable($userId);
-
-$payload = [
-    'chi_gained' => (int)$result['chi_gained'],
-    'chi' => $user ? max(0, (int)$user['chi']) : (int)$result['chi_after'],
-    'max_chi' => $user ? max(0, (int)$user['max_chi']) : (int)$result['max_chi'],
-    'level' => $user ? (int)$user['level'] : (int)($result['new_level'] ?? 1),
-    'attack' => $user ? max(0, (int)$user['attack']) : 0,
-    'defense' => $user ? max(0, (int)$user['defense']) : 0,
-    'level_up' => !empty($result['level_up']),
-    'new_level' => isset($result['new_level']) ? (int)$result['new_level'] : null,
-    'new_max_chi' => isset($result['new_max_chi']) ? (int)$result['new_max_chi'] : null,
-    'attribute_stat_gains' => $result['attribute_stat_gains'] ?? [],
-    'cooldown_remaining' => $cooldownRemaining,
-    'realm_progress_percent' => (int)($realmUi['realm_progress_percent'] ?? 0),
-    'next_realm_required_level' => isset($realmUi['next_realm']['required_level']) ? (int)$realmUi['next_realm']['required_level'] : null,
-    'next_realm_name' => isset($realmUi['next_realm']['name']) ? (string)$realmUi['next_realm']['name'] : null,
-    'levels_until_next_realm' => (int)($realmUi['levels_until_next_realm'] ?? 0),
-    'breakthrough_available' => !empty($realmUi['available']),
-    'realm_level_cap_reached' => !empty($result['realm_level_cap_reached']),
-];
-
+// Return the original committed display snapshot, including on replay. No post-commit DB work.
+$payload = array_merge($result, $result['display']);
+unset($payload['display']);
 ApiResponse::success($payload);
-

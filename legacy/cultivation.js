@@ -1,6 +1,19 @@
 (function () {
     'use strict';
 
+    // sessionStorage survives reload and network uncertainty. Clear only after a terminal response.
+    var requestKeySlot = 'upperrealms.cultivation.pending';
+    function pendingRequestKey() {
+        var key = sessionStorage.getItem(requestKeySlot);
+        if (!key) {
+            var bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            key = Array.from(bytes, function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+            sessionStorage.setItem(requestKeySlot, key);
+            if (sessionStorage.getItem(requestKeySlot) !== key) { throw new Error('Request key storage failed.'); }
+        }
+        return key;
+    }
     var btn = document.getElementById('cultivate-btn');
     var statusEl = document.getElementById('cultivate-status');
     var chiValueEl = document.getElementById('chi-value');
@@ -277,6 +290,13 @@
         orbClickAnim();
         pulseOrb();
 
+        var operationKey;
+        try { operationKey = pendingRequestKey(); }
+        catch (error) {
+            endChannelingUi();
+            showStatus('Unable to retain the request key. Enable browser session storage before cultivating.', true);
+            return;
+        }
         setButtonDisabled(true, '⏳ Cultivating…');
         showStatus('');
 
@@ -287,7 +307,7 @@
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            body: 'action=cultivate',
+            body: 'action=cultivate&operation_key=' + encodeURIComponent(operationKey),
         })
             .then(function (res) {
                 return res.text().then(function (text) {
@@ -313,6 +333,10 @@
                 endChannelingUi();
                 showTimingStatus('');
                 var data = result.data;
+                var operation = data.data && data.data.operation_status;
+                if (['committed', 'replayed', 'committed_cleanup_failed', 'rejected', 'invalid_request'].indexOf(operation) >= 0) {
+                    sessionStorage.removeItem(requestKeySlot);
+                }
                 if (data.success && data.data) {
                     var d = data.data;
                     updateChiBar(d.chi, d.max_chi);
