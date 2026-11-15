@@ -23,7 +23,7 @@ class OnboardingTest extends TestCase
             ->assertRedirect(route('onboarding.welcome', absolute: false));
     }
 
-    public function test_begin_onboarding_allows_hub(): void
+    public function test_begin_onboarding_enters_prologue_before_hub(): void
     {
         $user = User::factory()->create([
             'onboarding_step' => 0,
@@ -31,10 +31,14 @@ class OnboardingTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('onboarding.begin', absolute: false))
-            ->assertRedirect(route('game.hub', absolute: false));
+            ->assertRedirect(route('story.intro', absolute: false));
 
         $user->refresh();
         $this->assertSame(1, (int) $user->onboarding_step);
+        $this->assertNull($user->onboarding_completed_at);
+
+        $this->get(route('game.hub', absolute: false))
+            ->assertRedirect(route('story.intro', absolute: false));
     }
 
     public function test_skip_marks_onboarding_complete(): void
