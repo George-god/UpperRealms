@@ -1,6 +1,6 @@
 # Factions, Sects and Local Power
 
-**Status:** Established opening relationships and proposed wider political foundations.
+**Status:** Canon Checkpoint 01: ancient faction foundations, established opening relationships, and labelled future organizations.
 
 ## Riverstone Village — Established setting
 
@@ -43,3 +43,19 @@ At the village stage the player should know that sects exist and cultivation can
 5. How many distinct sects should the first chapter introduce? Prefer one memorable institution before a large faction roster.
 
 **Writing rule:** Do not assign political alignment such as “righteous” or “demonic” as objective narrative truth based solely on a sect's self-description.
+
+## Ancient factions — Canon foundations
+
+The Eternal Concord (working name) conducted the Great Returning beyond Sanctuary. Its full motives and internal politics remain open. The First Divine Being defected from it; outsiders are not all Concord members or inherently hostile.
+
+The First Ancients defended Sanctuary during the Ancient War. Working labels for philosophical tendencies are Wardens (prioritize defense and stability), Pathfinders (prioritize adaptation), and Returners (consider contact, negotiation or alternatives related to the Great Returning). These are not established modern sects, rigid alignments or exhaustive membership lists. Their founders, histories and present status remain for further development.
+
+The Nine Terraces were an ancient scholarly civilization, not nine modern sects. Their institutions specialized in observation and research. The Great Scattering ended their united civilization; Exiles, Hidden Hearths and Lost describe survival outcomes rather than organized political factions. Lantern Hollow remains a small surviving community, not an empire.
+
+## Future medical institutions — Planned future / working names
+
+The Open Lantern is not founded at player start. It develops as a network of traveling physicians, local healers, researchers and alchemists, later potentially a federation with regional independence. It is not a cultivation sect or a supreme authority of Heaven. Lin Mei is a founder, not an infallible ruler. Its functions include mobile treatment, local teaching, shared verified research, and independent safeguards.
+
+The Confluence of Hundred Remedies is a proposed gathering for medical debate; it cannot grant Heavenly Titles. The Nine Furnaces Pavilion is a working commercial organization associated with Su Yiren. The Open Lantern Compact is a future agreement following commercial misuse of incomplete research: open access to validated principles, additional safeguards for advanced methods, honest reporting of adverse outcomes, and shared responsibility among practitioners, merchants and communities. It is not universally accepted.
+
+Later planned Lantern Schism: disagreements over independence, institutional funding, research oversight and authority lead toward revised federation governance, not a predetermined civil war. Working branches are Traveling Lanterns, Keepers of Remedies and Guardians of Care. Lin Mei refuses to treat her Heavenly Title as unquestionable political authority. Regional leadership, financing and exact faction structure remain adjustable.
