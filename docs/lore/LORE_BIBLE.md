@@ -1,18 +1,19 @@
 # UpperRealms — Lore Bible, Volume I
 
-**Status:** Living creative reference, version 0.1 · **Scope:** Opening prologue and foundations for later chapters  
+**Status:** Living creative reference, version 0.2 · **Scope:** Canon Checkpoint 01 and existing prologue  
 **Audience:** Writers, designers and Codex working on story content  
 **Spoiler policy:** This directory is developer-facing. Do not expose its contents wholesale through the player Codex.
 
 ## Purpose
 
-UpperRealms is a cultivation MMORPG about a wanderer who awakens without memories in a world saturated with qi. The story begins locally, through human relationships, survival and learning to cultivate, while a larger danger to the Heavenly Dao emerges over time. The destination of the long-term narrative is a potential struggle to protect the Dao and existence from the Outer Gods; the mechanism, cosmology and resolution are **not decided**.
+UpperRealms is a cultivation MMORPG about a wanderer who awakens without memories in a world saturated with qi. The story begins locally, through human relationships, survival and learning to cultivate, while a larger danger to the Heavenly Dao emerges over time. The destination of the long-term narrative is a potential struggle to protect the Dao and existence from the Outer Gods; the cosmological foundations are approved in Checkpoint 01; the mechanism of the current crisis and ultimate resolution remain open.
 
 This Bible records decisions without confusing a pitch with implemented content.
 
 ## Canon and confidence labels
 
-- **Established:** Explicitly agreed creative direction or directly represented in current narrative game content. An established scene is not proof of any unseen explanation.
+- **Established / Canon:** Author-approved world facts (distinguish ancient history and present-day facts), or existing narrative game content. An established scene is not proof of an unseen explanation.
+- **Planned future:** Approved narrative direction, not an event that has occurred at player start; implementation, pacing and precise outcomes remain adjustable.
 - **In-game account:** A claim made by a character, dream, text or archivist. Such claims can be incomplete, biased, mistaken or allegorical.
 - **Proposed:** A candidate for approval, never an instruction to automatically change implementation.
 - **Open:** A deliberate unanswered question or contradiction needing author approval.
@@ -74,4 +75,21 @@ These beats are reflected in [config/story.php](../../config/story.php), not an 
 
 ## Change protocol
 
-For each new story decision, update the appropriate page, mark it **Established**, and record the consequences for other pages. Proposed content should remain labelled until approved. When implementation follows, compare its text and gameplay dependencies with the Bible; record deliberate divergences rather than silently overwriting them.
+For each explicitly approved world fact, update the appropriate page, mark it **Established**, and record the consequences for other pages. Mark future events **Planned future**, not present-day facts. Proposed content should remain labelled until approved. When implementation follows, compare its text and gameplay dependencies with the Bible; record deliberate divergences rather than silently overwriting them.
+
+## Canon Checkpoint 01 — approved 2026-11-19
+
+Repository documentation update authorized 2026-11-26. Developer-facing only.
+
+| Group | Status | Primary reference |
+| --- | --- | --- |
+| Sanctuary and Silent Heaven | Canon foundation | CULTIVATION_COSMOLOGY.md; WORLD_HISTORY.md |
+| Ancient War and First Fracture | Canon foundation | WORLD_HISTORY.md |
+| Scarred Realm and Nine Terraces | Canon foundation | REGIONS.md; WORLD_HISTORY.md |
+| Heavenly Titles | Canon foundation | CULTIVATION_COSMOLOGY.md |
+| Character foundations | Canon foundation | CHARACTERS.md |
+| Future storylines | Planned future, not current-world canon | MAIN_STORY.md; FACTIONS_AND_SECTS.md |
+
+The prologue remains unchanged. Developer knowledge, NPC beliefs, and the player's discovery timeline must not be conflated. The First Fracture is not confirmation of the dream's cracked heavens or the present Dao crisis. The player's origin and the dream speaker remain unresolved; the speaker cannot be the Dao speaking directly. Lin Mei is not yet a Divine Healer, and the Open Lantern has not yet formed at player start.
+
+The **Seal of Ink and Root** is the selected name. Boundless Expanse, Eternal Concord, Eternal Vanguard and Eternal Foundation are provisional terminology for canon concepts; other working labels remain subject to author refinement. Do not infer approval of other Heavenly Titles, exact dates, realm levels, maps, mechanics or every incidental brainstorm. No gameplay changes are authorized by this checkpoint.
