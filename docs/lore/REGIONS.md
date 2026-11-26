@@ -1,6 +1,6 @@
 # Regions and Environmental Storytelling
 
-**Status:** Two established opening locations; broader geography deliberately open.
+**Status:** Canon Checkpoint 01: opening locations and approved ancient/hidden regions; detailed geography open.
 
 ## Spirit Veil Forest — Established
 
@@ -45,3 +45,25 @@ The game has a world region system and Codex catalogue driven by game data. Thos
 - the chapter where it first appears.
 
 **Rule:** Do not invent mountains, distances, neighboring cities or faction borders in implementation prompts until we approve them.
+
+## Scarred Realm — Canon, hidden geography
+
+A large transformed wilderness within Sanctuary, not a surviving great empire. Law Scars, ruins, stable Resonance ecosystems, unusual creatures and local hazards coexist. Working region labels: Veiled Threshold (entry and camps), Shattered Marches (unstable terrain), Everbloom Canopy (stable living ecosystems), Silent Terraces (scholarly ruins), Mirrorwater Basin (unusual reflections; explanation open), and Fracture's Heart (altered Primordial Anchor, largely inaccessible). No coordinates, travel durations or connection to Spirit Veil Forest established. Not every unusual phenomenon has the same cause.
+
+## Ninth Terrace — Canon historical site
+
+The Terrace of Unfinished Questions was sealed during the Great Scattering. Its custodians preserved incomplete research with dangerous applications, including observations of a briefly stable transformed protective pattern and conflicting interventions with a related signature. They did not know the complete cosmic truth. Working location concept: overgrown observatory at the Everbloom Canopy's edge.
+
+The **Seal of Ink and Root** combines a Scholar's Seal (observable tests, instruments, knowledge safeguards) and a Covenant Seal (environmental reference relationships, not energy extraction). Its designers allowed limited adjustment; stable wilderness Resonance enabled unforeseen adaptations beyond their original design. It is not conscious, invincible or a moral test. The outer formation evolved while the deepest vault retained older rules, producing the **Unfinished Alignment**. Monitoring channels preserved later observations as the **Living Margins**, not written messages or altered ancient manuscripts. The original texts remain protected.
+
+Working chamber structure: Hall of Witnesses (testimonies), Chamber of Contradictions (observations), Vault of Unfinished Laws (dangerous incomplete methods; independent protection). Player discovery, the First Safe Opening, exact puzzles and deep vault access are planned future events. The Ninth Continuance is a working scholarly name for the earliest recoverable unforeseen adaptation. The seal's successful adaptation does not demonstrate that cosmic Anchors can be repaired by copying it.
+
+## Lantern Causeway and Lantern Hollow — Canon historical foundations
+
+The Causeway was an evacuation route of bridges, shelters and navigation formations. Han Zhiren modified it under emergency conditions; parts later adapted to transformed terrain while retaining some function. Its rediscovery and safe reopening are planned future. It provides a second local example of adaptation, not universal proof.
+
+Han led a small refugee community to safety; Lantern Hollow survives through generations, migrations and cultural change. Practical engineering, healing, navigation and careful records pass through families and apprenticeships. No exceptional bloodline or hidden empire. Working customs include leaving lights and shelters for travelers, updating maps with observations and remembering missing people without inventing their fates. The lantern beside an unfinished road and the saying about leaving a light for those who follow are proposed recurring motifs; recognition of their origin is planned.
+
+## Valley of Quiet Waters — character setting
+
+Proposed secluded healing residence of the living ancient Divine Healer Yun Suyin, outside the Scarred Realm. Its exact geography and name remain flexible. Yun's withdrawal and ongoing research are canon character foundations; players' discovery of her identity is planned future.
