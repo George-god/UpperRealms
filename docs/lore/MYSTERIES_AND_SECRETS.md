@@ -1,6 +1,6 @@
 # Mysteries and Secrets — Developer Notes
 
-**Status:** Unresolved mystery register. **Spoilers:** Keep this document out of in-game public text and player-accessible Codex seeds.
+**Status:** Canon Checkpoint 01: developer-only approved historical truths and unresolved mysteries. **Spoilers:** Keep this document out of in-game public text and player-accessible Codex seeds.
 
 ## Core mystery philosophy
 
@@ -48,13 +48,13 @@ Never “solve” a mystery in an implementation prompt by inventing a definitiv
 
 **Unknown:** Identity, reliability, motive, timeframe, whether the Dao is literally dying and whether the voice seeks help or manipulation.
 
-**Guardrail:** No early NPC should casually identify the speaker or explain the golden chains.
+**Guardrail:** The speaker cannot be the Heavenly Dao directly speaking (Silent Heaven). No early NPC should casually identify the speaker or explain the golden chains.
 
 ## Mystery M6 — What are the Outer Gods?
 
-**Design direction:** The Outer Gods are a far-future threat associated with the ultimate stakes of protecting the Dao.
+**Canon foundation:** Outer Gods is an in-world category for outsiders; some attacked the Sanctuary in the Ancient War. Not all are hostile. A future threat remains part of the long-term direction.
 
-**Unknown:** Origin, number, abilities, motivations, history of contact, relationship to the dream and how cultivators learn they exist.
+**Unknown:** Individual origins, number, abilities, motives, exact breaches and later contacts, relationship to the dream and how cultivators learn they exist.
 
 **Guardrail:** The story should **not** identify the corrupted wolf as Outer-God influence just because that would connect two mysteries quickly.
 
@@ -83,3 +83,17 @@ Writers may explore several competing hypotheses rather than selecting one prema
 6. Has the author explicitly approved the secret as canon?
 
 **Reminder:** Player-facing Codex discoveries should track what characters could reasonably know, not everything the writers know.
+
+## Checkpoint 01 — protected truths and open questions
+
+Developer canon: the First Being defected from the civilization behind the Great Returning and created Sanctuary; the Dao emerged as distinct nonlinguistic awareness; the Sundering produced two genuine aspects; conflicting Anchor interventions contributed to the First Fracture and outsiders exploited it. These truths are not common NPC knowledge. Do not infer that the dream depicts that event or that the present crisis has the same cause.
+
+- **Concord and greater threat:** Full motives, details of the defection, and what may exist beyond the Boundless Expanse remain open.
+- **Divided Self:** Exact communication, constraints and ultimate reconciliation/reunion/separation remain open. Neither aspect is the Dao or secretly established as evil.
+- **First Ancients:** Individual identities, origins, political organization and present status remain undecided.
+- **Ninth Terrace:** Fate of Yan Shou, Qiao Ning and other custodians, missing records, complete safe access and dangerous research details remain unresolved. The Archive contains observations, not direct messages from Heaven. The Living Margins record later phenomena; no omniscience.
+- **Lantern Hollow:** Founded by Han Zhiren's surviving refugees; individual final fates, any living original witness and details of later migrations remain open. No mandatory divine bloodline.
+- **Heavenly Titles:** No reliable manifestation threshold, universal renewal method or moral judgment. Yun's dormancy coincided with a changed foundation; exact mechanism remains open. Her renewal and Lin Mei's title are planned future events, not evidence available at player start.
+- **Anchor research:** Local adaptive formations and medical cases may inspire hypotheses, not prove an identical cosmic mechanism. The ultimate solution and fate of the Sanctuary remain open.
+
+All M1–M6 prologue mysteries retain their original evidence and uncertainty except the explicit clarification that the nonlinguistic Dao is not the speaking voice and historical outsider attacks are now established. No new protagonist identity, bloodline, prophecy, reincarnation or singular chosen-one explanation approved. Preserve in-world myths as attributed accounts, not objective fact. Future planned revelations are adjustable and must not be seeded into player-facing Codex before discovery.
